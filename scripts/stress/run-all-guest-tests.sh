@@ -7,8 +7,11 @@
 ./run-complete-test.sh guest-create-session-baseline-test.js stress
 
 # 瞬时压测测试
-TIMESTAMP=$(date +%Y%m%d-%H%M%S) && k6 run --summary-export=../../reports/guest-create-session-spike-100users-summary-${TIMESTAMP}.json guest-create-session-spike-test.js && node generate-core-report.js ../../reports/guest-create-session-spike-100users-summary-${TIMESTAMP}.json
-
+VUS_COUNT=100 TIMESTAMP=$(date +%Y%m%d-%H%M%S) && k6 run --summary-export=../../reports/guest-create-session-spike-100users-summary-${TIMESTAMP}.json guest-create-session-spike-test.js && node generate-core-report.js ../../reports/guest-create-session-spike-100users-summary-${TIMESTAMP}.json
+VUS_COUNT=200 TIMESTAMP=$(date +%Y%m%d-%H%M%S) && k6 run --summary-export=../../reports/guest-create-session-spike-200users-summary-${TIMESTAMP}.json guest-create-session-spike-test.js && node generate-core-report.js ../../reports/guest-create-session-spike-200users-summary-${TIMESTAMP}.json
+VUS_COUNT=300 TIMESTAMP=$(date +%Y%m%d-%H%M%S) && k6 run --summary-export=../../reports/guest-create-session-spike-300users-summary-${TIMESTAMP}.json guest-create-session-spike-test.js && node generate-core-report.js ../../reports/guest-create-session-spike-300users-summary-${TIMESTAMP}.json
+VUS_COUNT=400 TIMESTAMP=$(date +%Y%m%d-%H%M%S) && k6 run --summary-export=../../reports/guest-create-session-spike-400users-summary-${TIMESTAMP}.json guest-create-session-spike-test.js && node generate-core-report.js ../../reports/guest-create-session-spike-400users-summary-${TIMESTAMP}.json
+VUS_COUNT=500 TIMESTAMP=$(date +%Y%m%d-%H%M%S) && k6 run --summary-export=../../reports/guest-create-session-spike-500users-summary-${TIMESTAMP}.json guest-create-session-spike-test.js && node generate-core-report.js ../../reports/guest-create-session-spike-500users-summary-${TIMESTAMP}.json
 
 
 
