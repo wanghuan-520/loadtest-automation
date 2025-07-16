@@ -25,7 +25,7 @@ VUS_COUNT=500 TIMESTAMP=$(date +%Y%m%d-%H%M%S) && k6 run --summary-export=../../
 ./run-complete-test.sh guest-chat-baseline-test.js chat
 
 # 聊天阶梯式压力测试
-./run-complete-test.sh guest-chat-test.js chat-ramp-stress
+./run-complete-test.sh guest-chat-ramp-test.js chat-ramp-stress
 
 # 聊天瞬时压力测试序列
 VUS_COUNT=100 TIMESTAMP=$(date +%Y%m%d-%H%M%S) && k6 run --summary-export=../../reports/guest-chat-spike-100users-summary-${TIMESTAMP}.json guest-chat-spike-test.js && node generate-core-report.js ../../reports/guest-chat-spike-100users-summary-${TIMESTAMP}.json
