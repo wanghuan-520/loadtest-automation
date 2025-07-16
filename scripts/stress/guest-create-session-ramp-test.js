@@ -27,13 +27,13 @@ export const options = {
       startVUs: 0,
       stages: [
         { duration: '30s', target: 50 },   // 0→50用户（30s爬坡）
-        { duration: '5m', target: 50 },    // 持续5分钟
+        { duration: '1m', target: 50 },    // 持续1分钟
         { duration: '30s', target: 100 },  // 50→100用户（30s爬坡）
-        { duration: '5m', target: 100 },   // 持续5分钟
+        { duration: '1m', target: 100 },   // 持续1分钟
         { duration: '30s', target: 150 },  // 100→150用户（30s爬坡）
-        { duration: '5m', target: 150 },   // 持续5分钟
+        { duration: '1m', target: 150 },   // 持续1分钟
         { duration: '30s', target: 200 },  // 150→200用户（30s爬坡）
-        { duration: '5m', target: 200 },   // 持续5分钟
+        { duration: '1m', target: 200 },   // 持续1分钟
         { duration: '30s', target: 0 },    // 逐步降至0
       ],
       tags: { test_type: 'ramp_up' },
@@ -109,7 +109,7 @@ export function setup() {
   console.log(`📡 测试目标: ${config.baseUrl}/godgpt/guest/create-session`);
   console.log('🔧 测试场景: 阶梯式递增(0→200用户，逐步爬坡)');
 
-  console.log('⏱️  预计测试时间: 约23分钟');
+  console.log('⏱️  预计测试时间: 约7分钟');
   return { baseUrl: config.baseUrl };
 }
 
