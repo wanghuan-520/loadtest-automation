@@ -128,7 +128,13 @@ class K6CoreReportGenerator {
       console.log('📊 检测到基准测试，使用配置时长: 60秒');
       return 60;
     } 
-    // 2. 压力测试特征：虚拟用户数>1 或 文件名包含stress/ramp
+    // 2. 瞬时压力测试特征：文件名包含spike
+    else if (testName.includes('spike')) {
+      // 瞬时压力测试配置: duration: '1m' = 60秒
+      console.log('⚡ 检测到瞬时压力测试，使用配置时长: 60秒');
+      return 60;
+    }
+    // 3. 阶梯压力测试特征：虚拟用户数>1 或 文件名包含stress/ramp
     else if (virtualUsers > 1 || testName.includes('stress') || testName.includes('ramp')) {
       // 压力测试配置: 复杂的ramping stages
       // stages: [
@@ -140,10 +146,10 @@ class K6CoreReportGenerator {
       //   { duration: '5m', target: 60 },    // 300s
       //   { duration: '2m', target: 0 }      // 120s
       // ] 总计: 22分钟 = 1320秒
-      console.log('🚀 检测到压力测试，使用配置时长: 1320秒 (22分钟)');
+      console.log('🚀 检测到阶梯压力测试，使用配置时长: 1320秒 (22分钟)');
       return 1320;
     } 
-    // 3. 默认情况
+    // 4. 默认情况
     else {
       // 默认使用60秒
       console.log('🔧 未识别测试类型，使用默认时长: 60秒');
@@ -223,10 +229,10 @@ class K6CoreReportGenerator {
   extractInterfaceName(data) {
     try {
       // 从根组的名称推断接口，或使用默认值
-      this.coreMetrics.interfaceName = '/api/godgpt/guest/create-session';
+      return '/godgpt/guest/create-session';
     } catch (error) {
       console.log('⚠️ 接口名称提取失败，使用默认值');
-      this.coreMetrics.interfaceName = '/api/godgpt/guest/create-session';
+      return '/godgpt/guest/create-session';
     }
   }
 
