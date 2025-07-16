@@ -21,43 +21,16 @@ export const options = {
       startVUs: 0,
       stages: [
         { duration: '30s', target: 50 },   // 0→50用户（30s爬坡）
-        { duration: '5m', target: 50 },    // 持续5分钟
+        { duration: '1m', target: 50 },    // 持续1分钟
         { duration: '30s', target: 100 },  // 50→100用户（30s爬坡）
-        { duration: '5m', target: 100 },   // 持续5分钟
+        { duration: '1m', target: 100 },   // 持续1分钟
         { duration: '30s', target: 150 },  // 100→150用户（30s爬坡）
-        { duration: '5m', target: 150 },   // 持续5分钟
+        { duration: '1m', target: 150 },   // 持续1分钟
         { duration: '30s', target: 200 },  // 150→200用户（30s爬坡）
-        { duration: '5m', target: 200 },   // 持续5分钟
+        { duration: '1m', target: 200 },   // 持续1分钟
         { duration: '30s', target: 0 },    // 逐步降至0
       ],
       tags: { test_type: 'ramp_up' },
-    },
-    
-    // 瞬时压力测试 - 100用户 (在阶梯测试完成后开始)
-    spike_100: {
-      executor: 'constant-vus',
-      vus: 100,
-      duration: '5m',
-      startTime: '23m',  // 阶梯测试约23分钟，之后开始
-      tags: { test_type: 'spike_100' },
-    },
-    
-    // 瞬时压力测试 - 200用户 (在100用户测试完成后开始)
-    spike_200: {
-      executor: 'constant-vus',
-      vus: 200,
-      duration: '5m',
-      startTime: '28m',  // 在spike_100完成后开始
-      tags: { test_type: 'spike_200' },
-    },
-    
-    // 瞬时压力测试 - 300用户 (在200用户测试完成后开始)
-    spike_300: {
-      executor: 'constant-vus',
-      vus: 300,
-      duration: '5m',
-      startTime: '33m',  // 在spike_200完成后开始
-      tags: { test_type: 'spike_300' },
     },
   },
   
@@ -177,14 +150,15 @@ export default function () {
 export function setup() {
   console.log('🚀 开始 guest/chat 接口压力测试...');
   console.log(`📡 测试目标: ${config.baseUrl}/godgpt/guest/chat`);
-  console.log('🔧 测试场景: 阶梯式递增(0→200用户) + 瞬时压力(100/200/300用户)');
+  console.log('🔧 测试场景: 阶梯式递增(0→200用户，逐步爬坡)');
+  console.log('⏱️  预计测试时间: 约6.5分钟');
   console.log('🎯 性能要求: 平均响应时间<200ms, 错误率<0.1%');
   return { baseUrl: config.baseUrl };
 }
 
 // 测试清理阶段
 export function teardown(data) {
-  console.log('✅ guest/chat 接口压力测试完成');
+  console.log('✅ guest/chat 阶梯式压力测试完成');
   console.log('🔍 关键指标：会话创建成功率、对话响应成功率、端到端响应时间');
-  console.log('📈 请分析各场景下的TPS、响应时间分布和系统资源使用情况');
+  console.log('📈 请分析各阶段的TPS、响应时间分布和系统资源使用情况');
 } 

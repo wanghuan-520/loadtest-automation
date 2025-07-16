@@ -98,7 +98,7 @@ export function setup() {
   console.log(`📡 测试目标: ${config.baseUrl}/godgpt/guest/create-session`);
   console.log('🔧 测试场景: 阶梯式递增(0→200用户，逐步爬坡)');
 
-  console.log('⏱️  预计测试时间: 约7分钟');
+  console.log('⏱️  预计测试时间: 约6.5分钟');
   return { baseUrl: config.baseUrl };
 }
 
