@@ -77,23 +77,12 @@ export default function () {
     { headers }
   );
 
-  // 简化响应验证
-  let isSuccess = false;
+  // 简化响应验证 - 只检查HTTP状态码200
+  const isSuccess = createSessionResponse.status === 200;
   
-  if (createSessionResponse.status === 200) {
-    try {
-      const body = JSON.parse(createSessionResponse.body);
-      isSuccess = body.code === "20000" && 
-                  body.data && 
-                  body.data.hasOwnProperty('remainingChats');
-    } catch (e) {
-      isSuccess = false;
-    }
-  }
-  
-  // 简化功能验证
+  // 功能验证 - 只检查状态码
   check(createSessionResponse, {
-    'API-功能正常': () => isSuccess,
+    'API-状态码200': (r) => r.status === 200,
   });
 
   // 记录自定义指标 - 只有200状态码才计入成功

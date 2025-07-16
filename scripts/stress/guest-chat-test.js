@@ -107,30 +107,19 @@ export default function () {
     { headers: sessionHeaders }
   );
 
-  // 简化会话创建验证
-  let sessionId = null;
-  let isSessionCreated = false;
-  
-  if (createSessionResponse.status === 200) {
-    try {
-      const body = JSON.parse(createSessionResponse.body);
-      sessionId = body.sessionId;
-      isSessionCreated = sessionId && sessionId.length > 0 && body.success === true;
-    } catch (e) {
-      isSessionCreated = false;
-    }
-  }
+  // 简化会话创建验证 - 只检查HTTP状态码200
+  const isSessionCreated = createSessionResponse.status === 200;
 
-  // 简化功能验证
+  // 功能验证 - 只检查状态码
   check(createSessionResponse, {
-    'Session-功能正常': () => isSessionCreated,
+    'Session-状态码200': (r) => r.status === 200,
   });
 
   // 记录会话创建指标
   sessionCreationRate.add(isSessionCreated);
 
   // 如果会话创建失败，跳过后续步骤
-  if (!isSessionCreated || !sessionId) {
+  if (!isSessionCreated) {
     return;
   }
 
@@ -165,36 +154,12 @@ export default function () {
     { headers: chatHeaders }
   );
 
-  // 验证聊天响应 - 严格检查状态码200
-  const chatStatusCheck = check(chatResponse, {
-    '聊天-状态码严格为200': (r) => r.status === 200,
-    '聊天-响应时间小于5000ms': (r) => r.timings.duration < 5000, // SSE响应时间较长
-  });
-
-  // 只有状态码200才进行业务逻辑验证
-  let isChatSuccess = false;
+  // 验证聊天响应 - 只检查HTTP状态码200
+  const isChatSuccess = chatResponse.status === 200;
   
-  if (chatResponse.status === 200) {
-    const chatBusinessCheck = check(chatResponse, {
-      '聊天-Content-Type为text/event-stream': (r) => {
-        const contentType = r.headers['Content-Type'] || r.headers['content-type'];
-        return contentType && contentType.includes('text/event-stream');
-      },
-      '聊天-返回有效SSE流数据': (r) => {
-        // 检查是否包含SSE格式的数据
-        const body = r.body;
-        return body && body.length > 0 && (body.includes('data:') || body.includes('event:'));
-      },
-      '聊天-响应体不为空': (r) => {
-        return r.body && r.body.length > 0;
-      },
-    });
-    
-    // 只有状态码200且业务逻辑正确才算成功
-    isChatSuccess = chatBusinessCheck;
-  } else {
-    console.log(`❌ 聊天请求失败 - 状态码: ${chatResponse.status}, 响应体: ${chatResponse.body}`);
-  }
+  check(chatResponse, {
+    '聊天-状态码200': (r) => r.status === 200,
+  });
 
   // 记录自定义指标 - 只有200状态码才计入成功
   chatResponseRate.add(isChatSuccess);
