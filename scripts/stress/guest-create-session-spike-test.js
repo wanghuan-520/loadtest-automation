@@ -11,7 +11,7 @@ const config = JSON.parse(open('../../config/env.dev.json'));
 
 // 从环境变量获取用户数量，默认100
 const VUS_COUNT = parseInt(__ENV.VUS_COUNT || '100');
-const TEST_DURATION = __ENV.TEST_DURATION || '1m';
+const TEST_DURATION = __ENV.TEST_DURATION || '5m';
 
 // 生成随机IP地址的函数
 function generateRandomIP() {
