@@ -12,4 +12,4 @@ ENV PATH="/usr/local/bin:${PATH}"
 
 # Default command (can be overridden)
 ENTRYPOINT ["k6"]
-CMD ["run", "--help"] 
+CMD ["run", "scripts/performance-test.js"] 

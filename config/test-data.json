@@ -1,0 +1,40 @@
+{
+  "messages": [
+    {
+      "type": "meditation",
+      "content": "Guide me through a short meditation to help me feel calm, present, and grounded."
+    },
+    {
+      "type": "greeting",
+      "content": "你好，请问有什么可以帮助你的？"
+    },
+    {
+      "type": "question",
+      "content": "解释一下什么是人工智能？"
+    },
+    {
+      "type": "complex",
+      "content": "请详细分析一下当前AI发展的趋势和未来方向..."
+    },
+    {
+      "type": "question",
+      "content": "What is blockchain?"
+    },
+    {
+      "type": "question",
+      "content": "Tell me about aelf"
+    },
+    {
+      "type": "mindfulness",
+      "content": "Can you help me with a breathing exercise?"
+    },
+    {
+      "type": "relaxation",
+      "content": "I'm feeling stressed, can you guide me through a relaxation technique?"
+    },
+    {
+      "type": "meditation",
+      "content": "Lead me through a 5-minute mindfulness meditation"
+    }
+  ]
+} 

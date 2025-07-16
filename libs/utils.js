@@ -26,11 +26,7 @@ export function generateRandomString(length = 10) {
   return result;
 }
 
-// Sleep with jitter
-export function sleepWithJitter(min, max) {
-  const jitter = Math.random() * (max - min) + min;
-  sleep(jitter);
-}
+
 
 // Format timestamp
 export function formatTimestamp(date = new Date()) {
