@@ -28,7 +28,7 @@ export const options = {
     },
   },
   thresholds: {
-    http_req_duration: ['p(95)<5000'], // 95%的请求响应时间应小于5秒
+    http_req_duration: ['avg<200'], // 平均响应时间应小于200毫秒
     api_call_success_rate: ['rate>0.99'], // API调用成功率应大于99%
   },
 };
@@ -39,7 +39,7 @@ export function setup() {
   console.log(`📡 测试目标: ${config.baseUrl}/godgpt/guest/create-session`);
   console.log('🔧 测试类型: 基线性能测试 (1用户, 1分钟)');
   console.log('📊 使用K6原生监控，测试完成后查看汇总报告');
-  console.log('🎯 性能要求: 平均响应时间<200ms, 错误率<0.1%');
+  console.log('🎯 性能要求: 平均响应时间<200ms, 错误率<1%');
   return { baseUrl: config.baseUrl };
 }
 
@@ -77,5 +77,5 @@ export function teardown(data) {
   console.log('✅ guest/create-session 基准测试完成');
   console.log('📊 性能基线数据已记录到K6报告中');
   console.log('🔍 关键指标: http_req_duration, api_call_success_rate, api_call_duration');
-  console.log('🎯 性能基线: 平均响应时间<200ms, 错误率<0.1%');
+  console.log('🎯 性能基线: 平均响应时间<200ms, 错误率<1%');
 } 

@@ -12,7 +12,10 @@ ehthumbs.db
 Thumbs.db
 
 # 编辑器和IDE文件
-.cursor/
+.cursor/*
+# 但是强制包含rules目录及其内容
+!.cursor/rules/
+!.cursor/rules/**
 .vscode/
 .idea/
 

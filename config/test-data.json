@@ -1,40 +1,44 @@
 {
   "messages": [
     {
-      "type": "meditation",
-      "content": "Guide me through a short meditation to help me feel calm, present, and grounded."
-    },
-    {
       "type": "greeting",
-      "content": "你好，请问有什么可以帮助你的？"
+      "content": "你好，我想开始一段冥想练习"
     },
     {
       "type": "question",
-      "content": "解释一下什么是人工智能？"
+      "content": "如何进行正念呼吸练习？"
     },
     {
-      "type": "complex",
-      "content": "请详细分析一下当前AI发展的趋势和未来方向..."
+      "type": "complex_query",
+      "content": "请为我制定一个为期30天的正念冥想计划，包括每日的具体练习内容和时间安排"
     },
     {
-      "type": "question",
-      "content": "What is blockchain?"
-    },
-    {
-      "type": "question",
-      "content": "Tell me about aelf"
+      "type": "meditation_guidance",
+      "content": "我感到焦虑和压力，能给我一些冥想指导吗？"
     },
     {
       "type": "mindfulness",
-      "content": "Can you help me with a breathing exercise?"
+      "content": "如何在日常工作中保持正念状态？"
     },
     {
-      "type": "relaxation",
-      "content": "I'm feeling stressed, can you guide me through a relaxation technique?"
+      "type": "short_question",
+      "content": "什么是冥想？"
     },
     {
-      "type": "meditation",
-      "content": "Lead me through a 5-minute mindfulness meditation"
+      "type": "stress_relief",
+      "content": "我工作压力很大，有什么快速缓解压力的冥想方法吗？"
+    },
+    {
+      "type": "sleep_meditation",
+      "content": "我晚上失眠，能推荐一些睡前冥想练习吗？"
+    },
+    {
+      "type": "body_scan",
+      "content": "请引导我进行身体扫描冥想练习"
+    },
+    {
+      "type": "loving_kindness",
+      "content": "能教我慈心冥想的方法吗？"
     }
   ]
 } 
