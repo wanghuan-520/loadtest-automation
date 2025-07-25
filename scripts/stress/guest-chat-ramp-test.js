@@ -2,6 +2,11 @@ import http from 'k6/http';
 import { check } from 'k6';
 import { Rate, Trend } from 'k6/metrics';
 
+// 使用说明：
+// 默认目标并发数: 100用户（标准递增：1分钟爬坡→5分钟稳定→30秒归零）
+// 自定义目标并发数: k6 run -e TARGET_VUS=200 guest-chat-ramp-test.js
+// 示例: k6 run -e TARGET_VUS=150 guest-chat-ramp-test.js
+
 // 自定义指标
 const sessionCreationRate = new Rate('session_creation_success_rate');
 const chatResponseRate = new Rate('chat_response_success_rate');
@@ -12,24 +17,26 @@ const endToEndDuration = new Trend('end_to_end_duration');
 const config = JSON.parse(open('../../config/env.dev.json'));
 const testData = JSON.parse(open('../../config/test-data.json'));
 
+// 获取目标并发数参数，默认值为100
+const TARGET_VUS = __ENV.TARGET_VUS ? parseInt(__ENV.TARGET_VUS) : 100;
+
+// 标准化阶梯式递增stages配置
+function generateStandardRampStages(targetVus) {
+  return [
+    { duration: '1m', target: targetVus },   // 1分钟爬坡到目标用户数
+    { duration: '5m', target: targetVus },   // 持续5分钟稳定负载
+    { duration: '30s', target: 0 },          // 30秒降至0
+  ];
+}
+
 // 压力测试场景配置 - 根据需求文档调整
 export const options = {
   scenarios: {
-    // 阶梯式递增测试 - 按需求文档配置
+    // 阶梯式递增测试 - 标准化配置
     ramp_up: {
       executor: 'ramping-vus',
       startVUs: 0,
-      stages: [
-        { duration: '30s', target: 50 },   // 0→50用户（30s爬坡）
-        { duration: '1m', target: 50 },    // 持续1分钟
-        { duration: '30s', target: 100 },  // 50→100用户（30s爬坡）
-        { duration: '1m', target: 100 },   // 持续1分钟
-        { duration: '30s', target: 150 },  // 100→150用户（30s爬坡）
-        { duration: '1m', target: 150 },   // 持续1分钟
-        { duration: '30s', target: 200 },  // 150→200用户（30s爬坡）
-        { duration: '1m', target: 200 },   // 持续1分钟
-        { duration: '30s', target: 0 },    // 逐步降至0
-      ],
+      stages: generateStandardRampStages(TARGET_VUS),  // 标准化递增配置
       tags: { test_type: 'ramp_up' },
     },
   },
@@ -150,7 +157,8 @@ export default function () {
 export function setup() {
   console.log('🚀 开始 guest/chat 接口压力测试...');
   console.log(`📡 测试目标: ${config.baseUrl}/godgpt/guest/chat`);
-  console.log('🔧 测试场景: 阶梯式递增(0→200用户，逐步爬坡)');
+  console.log(`🔧 测试场景: 标准递增(0→${TARGET_VUS}用户，1分钟爬坡→5分钟稳定)`);
+  console.log(`🎯 目标并发数: ${TARGET_VUS} (可通过 TARGET_VUS 环境变量配置)`);
   console.log('⏱️  预计测试时间: 约6.5分钟');
   console.log('🎯 性能要求: 平均响应时间<200ms, 错误率<0.1%');
   return { baseUrl: config.baseUrl };

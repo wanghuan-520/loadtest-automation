@@ -18,6 +18,13 @@ TIMESTAMP=$(date +%Y%m%d-%H%M%S) && k6 run -e VUS_COUNT=500 --summary-export=../
 TIMESTAMP=$(date +%Y%m%d-%H%M%S) && k6 run -e VUS_COUNT=1000 --summary-export=../../reports/guest-create-session-spike-1000users-summary-${TIMESTAMP}.json guest-create-session-spike-test.js && node generate-core-report.js ../../reports/guest-create-session-spike-1000users-summary-${TIMESTAMP}.json
 
 # 创建会话阶梯式压力测试
+# 使用200并发数运行guest创建会话递增测试
+./run-complete-test.sh guest-create-session-ramp-test.js ramp-stress 200
+
+# 使用300并发数
+./run-complete-test.sh guest-create-session-ramp-test.js ramp-stress 300
+
+# 使用默认并发数（100）
 ./run-complete-test.sh guest-create-session-ramp-test.js ramp-stress
 
 

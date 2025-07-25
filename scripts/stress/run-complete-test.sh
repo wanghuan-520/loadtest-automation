@@ -109,23 +109,28 @@ if [ $# -eq 0 ]; then
     print_error "缺少测试脚本参数"
     echo
     echo "📖 使用方法:"
-    echo "   ./run-complete-test.sh <test-script.js> [test-name]"
+    echo "   ./run-complete-test.sh <test-script.js> [test-name] [target-vus]"
     echo
     echo "📝 示例:"
     echo "   ./run-complete-test.sh guest-create-session-baseline-test.js baseline"
-    echo "   ./run-complete-test.sh guest-create-session-test.js stress"
-    echo "   ./run-complete-test.sh guest-chat-baseline-test.js chat"
+    echo "   ./run-complete-test.sh guest-create-session-ramp-test.js ramp-stress 200"
+    echo "   ./run-complete-test.sh guest-chat-baseline-test.js chat 50"
     echo
     echo "🎯 可用的测试脚本:"
     echo "   - guest-create-session-baseline-test.js  (创建会话基准测试)"
-    echo "   - guest-create-session-test.js           (创建会话压力测试)"
+    echo "   - guest-create-session-ramp-test.js      (创建会话递增测试) ⭐支持并发数参数"
     echo "   - guest-chat-baseline-test.js            (聊天基准测试)"
     echo "   - guest-chat-test.js                     (聊天压力测试)"
+    echo
+    echo "🎯 并发数参数说明:"
+    echo "   - 如果测试脚本支持TARGET_VUS参数，可通过第三个参数传入"
+    echo "   - 例如: ./run-complete-test.sh guest-create-session-ramp-test.js ramp-stress 300"
     exit 1
 fi
 
 TEST_SCRIPT="$1"
 TEST_NAME="${2:-test}"
+TARGET_VUS="$3"
 
 # 检查测试脚本是否存在
 if [ ! -f "$TEST_SCRIPT" ]; then
@@ -158,9 +163,19 @@ mkdir -p "$REPORTS_DIR"
 # 创建错误日志文件
 touch "$ERROR_LOG_FILE"
 
+# 构建K6环境变量参数
+K6_ENV_ARGS=""
+if [ ! -z "$TARGET_VUS" ]; then
+    K6_ENV_ARGS="-e TARGET_VUS=$TARGET_VUS"
+    print_info "🎯 并发数参数: $TARGET_VUS"
+fi
+
 # 记录测试开始信息
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] INFO: 开始执行测试 - $TEST_NAME" >> "$ERROR_LOG_FILE"
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] INFO: 测试脚本: $TEST_SCRIPT" >> "$ERROR_LOG_FILE"
+if [ ! -z "$TARGET_VUS" ]; then
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] INFO: 目标并发数: $TARGET_VUS" >> "$ERROR_LOG_FILE"
+fi
 
 print_info "🚀 开始K6完整测试流程..."
 print_debug "错误日志将保存到: $ERROR_LOG_FILE"
@@ -171,21 +186,46 @@ echo "   - JSON数据: $JSON_FILE"
 echo "   - 汇总数据: $SUMMARY_FILE"
 echo "   - 原生报告: $NATIVE_FILE"
 echo "   - 错误日志: $ERROR_LOG_FILE"
+if [ ! -z "$TARGET_VUS" ]; then
+    echo "   - 目标并发数: $TARGET_VUS"
+fi
 echo
 
 # 第一步：运行K6测试 ⭐ 改进错误处理
 print_info "📊 第一步: 运行K6测试并保存原生报告..."
-echo "运行命令: k6 run --out json=\"$JSON_FILE\" --summary-export=\"$SUMMARY_FILE\" \"$TEST_SCRIPT\""
+if [ ! -z "$TARGET_VUS" ]; then
+    echo "运行命令: k6 run $K6_ENV_ARGS --out json=\"$JSON_FILE\" --summary-export=\"$SUMMARY_FILE\" \"$TEST_SCRIPT\""
+else
+    echo "运行命令: k6 run --out json=\"$JSON_FILE\" --summary-export=\"$SUMMARY_FILE\" \"$TEST_SCRIPT\""
+fi
 echo
 
 # ⭐ 运行测试并捕获错误
-if k6 run --out json="$JSON_FILE" --summary-export="$SUMMARY_FILE" "$TEST_SCRIPT" 2>&1 | tee "$NATIVE_FILE"; then
-    print_success "K6测试执行完成"
+K6_SUCCESS=false
+if [ ! -z "$TARGET_VUS" ]; then
+    # 使用环境变量运行测试
+    if k6 run $K6_ENV_ARGS --out json="$JSON_FILE" --summary-export="$SUMMARY_FILE" "$TEST_SCRIPT" 2>&1 | tee "$NATIVE_FILE"; then
+        print_success "K6测试执行完成"
+        K6_SUCCESS=true
+    else
+        K6_EXIT_CODE=$?
+        log_error "K6测试执行失败，退出代码: $K6_EXIT_CODE"
+        log_error "命令: k6 run $K6_ENV_ARGS --out json=\"$JSON_FILE\" --summary-export=\"$SUMMARY_FILE\" \"$TEST_SCRIPT\""
+    fi
 else
-    K6_EXIT_CODE=$?
-    log_error "K6测试执行失败，退出代码: $K6_EXIT_CODE"
-    log_error "命令: k6 run --out json=\"$JSON_FILE\" --summary-export=\"$SUMMARY_FILE\" \"$TEST_SCRIPT\""
-    
+    # 不使用环境变量运行测试
+    if k6 run --out json="$JSON_FILE" --summary-export="$SUMMARY_FILE" "$TEST_SCRIPT" 2>&1 | tee "$NATIVE_FILE"; then
+        print_success "K6测试执行完成"
+        K6_SUCCESS=true
+    else
+        K6_EXIT_CODE=$?
+        log_error "K6测试执行失败，退出代码: $K6_EXIT_CODE"
+        log_error "命令: k6 run --out json=\"$JSON_FILE\" --summary-export=\"$SUMMARY_FILE\" \"$TEST_SCRIPT\""
+    fi
+fi
+
+# 如果K6测试失败，进行错误处理
+if [ "$K6_SUCCESS" = false ]; then
     # ⭐ 显示详细错误诊断
     show_error_diagnosis "k6_test" "$K6_EXIT_CODE"
     
