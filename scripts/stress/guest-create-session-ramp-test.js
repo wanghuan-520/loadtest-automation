@@ -26,15 +26,8 @@ export const options = {
       executor: 'ramping-vus',
       startVUs: 0,
       stages: [
-        { duration: '30s', target: 50 },   // 0→50用户（30s爬坡）
-        { duration: '1m', target: 50 },    // 持续1分钟
-        { duration: '30s', target: 100 },  // 50→100用户（30s爬坡）
-        { duration: '1m', target: 100 },   // 持续1分钟
-        { duration: '30s', target: 150 },  // 100→150用户（30s爬坡）
-        { duration: '1m', target: 150 },   // 持续1分钟
-        { duration: '30s', target: 200 },  // 150→200用户（30s爬坡）
-        { duration: '1m', target: 200 },   // 持续1分钟
-        { duration: '30s', target: 0 },    // 逐步降至0
+        { duration: '1m', target: 100 },   // 0→50用户（30s爬坡）
+        { duration: '5m', target: 50 },    // 持续1分钟
       ],
       tags: { test_type: 'ramp_up' },
     },

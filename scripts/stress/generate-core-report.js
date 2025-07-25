@@ -222,13 +222,32 @@ class K6CoreReportGenerator {
       this.coreMetrics.throughput = Math.round(metrics.http_reqs.rate * 100) / 100;
     }
     
+    // 如果有chat相关指标，显示详细信息
+    if (metrics.chat_response_duration) {
+      console.log('📋 详细接口统计:');
+      console.log(`   - Create-Session: 成功率 ${metrics.session_creation_success_rate ? Math.round(metrics.session_creation_success_rate.value * 100) : 0}%`);
+      console.log(`   - Chat: 成功率 ${metrics.chat_response_success_rate ? Math.round(metrics.chat_response_success_rate.value * 100) : 0}%`);
+      console.log(`   - Chat平均响应时间: ${Math.round(metrics.chat_response_duration.avg || 0)} ms`);
+    }
+    
     return true; // 数据解析成功
   }
 
   // 从HTTP请求数据中提取接口名称
   extractInterfaceName(data) {
     try {
+      console.log('🔍 检查接口名称提取条件:');
+      console.log('   - data.metrics存在:', !!data.metrics);
+      console.log('   - chat_response_success_rate存在:', !!(data.metrics && data.metrics.chat_response_success_rate));
+      console.log('   - chat_response_duration存在:', !!(data.metrics && data.metrics.chat_response_duration));
+      
+      // 检查是否包含chat相关的指标，如果有则返回组合接口名称
+      if (data.metrics && data.metrics.chat_response_success_rate) {
+        console.log('✅ 检测到chat接口，返回组合接口名称');
+        return '/godgpt/guest/create-session + /godgpt/guest/chat';
+      }
       // 从根组的名称推断接口，或使用默认值
+      console.log('⚠️ 未检测到chat接口，使用默认接口名称');
       return '/godgpt/guest/create-session';
     } catch (error) {
       console.log('⚠️ 接口名称提取失败，使用默认值');
@@ -261,24 +280,29 @@ class K6CoreReportGenerator {
       this.coreMetrics.maxResponseTime = Math.round(metrics.http_req_duration.max || 0);
     }
     
-    // API成功率（只统计API功能性检查，不包括性能检查）
+    // API成功率 - 统计所有检查项的成功率
     if (data.root_group && data.root_group.checks) {
       let totalChecks = 0;
       let passedChecks = 0;
       
+      console.log('🔍 检查项详情:');
       for (const checkName in data.root_group.checks) {
-        // 只统计以"API-"开头的检查项，排除性能检查
-        if (checkName.startsWith('API-')) {
-          const check = data.root_group.checks[checkName];
-          totalChecks += (check.passes || 0) + (check.fails || 0);
-          passedChecks += (check.passes || 0);
-        }
+        const check = data.root_group.checks[checkName];
+        const passes = check.passes || 0;
+        const fails = check.fails || 0;
+        totalChecks += passes + fails;
+        passedChecks += passes;
+        console.log(`   - ${checkName}: 成功${passes}次, 失败${fails}次`);
       }
+      
+      console.log(`📊 总计: 成功${passedChecks}次, 失败${totalChecks - passedChecks}次, 总计${totalChecks}次`);
       
       if (totalChecks > 0) {
         this.coreMetrics.apiSuccessRate = Math.round((passedChecks / totalChecks) * 10000) / 100; // 保留2位小数
+        console.log(`📈 API成功率: ${this.coreMetrics.apiSuccessRate}%`);
       } else {
         this.coreMetrics.apiSuccessRate = 100; // 默认100%
+        console.log(`📈 API成功率: 100% (默认值)`);
       }
     }
     
@@ -334,16 +358,16 @@ class K6CoreReportGenerator {
     fs.writeFileSync(reportPath, htmlContent, 'utf8');
     
     console.log(`✅ 核心指标HTML报告生成完成: ${reportPath}`);
-    console.log(`📊 核心指标概览:`);
-    console.log(`   - 接口名称: ${this.coreMetrics.interfaceName}`);
-    console.log(`   - 虚拟用户数: ${this.coreMetrics.virtualUsers}`);
-    console.log(`   - 执行时长: ${this.coreMetrics.durationSeconds} 秒`);
-    console.log(`   - 总请求数: ${this.coreMetrics.totalRequests}`);
-    console.log(`   - 平均响应时间: ${this.coreMetrics.avgResponseTime} ms`);
-    console.log(`   - 95分位响应时间: ${this.coreMetrics.p95ResponseTime} ms`);
-    console.log(`   - 最大响应时间: ${this.coreMetrics.maxResponseTime} ms`);
-    console.log(`   - API成功率: ${this.coreMetrics.apiSuccessRate}%`);
-    console.log(`   - 吞吐量: ${this.coreMetrics.throughput} 请求/秒`);
+    // console.log(`📊 核心指标概览:`);
+    // console.log(`   - 接口名称: ${this.coreMetrics.interfaceName}`);
+    // console.log(`   - 虚拟用户数: ${this.coreMetrics.virtualUsers}`);
+    // console.log(`   - 执行时长: ${this.coreMetrics.durationSeconds} 秒`);
+    // console.log(`   - 总请求数: ${this.coreMetrics.totalRequests}`);
+    // console.log(`   - 平均响应时间: ${this.coreMetrics.avgResponseTime} ms`);
+    // console.log(`   - 95分位响应时间: ${this.coreMetrics.p95ResponseTime} ms`);
+    // console.log(`   - 最大响应时间: ${this.coreMetrics.maxResponseTime} ms`);
+    // console.log(`   - API成功率: ${this.coreMetrics.apiSuccessRate}%`);
+    // console.log(`   - 吞吐量: ${this.coreMetrics.throughput} 请求/秒`);
     
     // 自动打开HTML报告
     this.openHtmlReport(reportPath);
@@ -354,6 +378,10 @@ class K6CoreReportGenerator {
   // 生成HTML内容
   generateHtmlContent() {
     const currentTime = new Date().toLocaleString('zh-CN');
+    
+    // 读取原始数据以获取详细接口信息
+    const data = this.parseJsonFile();
+    const detailedInterfaceTable = this.generateDetailedInterfaceTable(data);
     
     return `<!DOCTYPE html>
 <html lang="zh-CN">
@@ -498,34 +526,7 @@ class K6CoreReportGenerator {
         </div>
         
         <div class="content">
-            <table class="metrics-table">
-                <thead>
-                    <tr>
-                        <th>接口名称</th>
-                        <th>虚拟用户数</th>
-                        <th>执行时长（s）</th>
-                        <th>总请求数</th>
-                        <th>平均响应时间（ms）</th>
-                        <th>95分位响应时间（ms）</th>
-                        <th>最大响应时间（ms）</th>
-                        <th>API成功率</th>
-                        <th>吞吐量（req/s）</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td class="interface-name">${this.coreMetrics.interfaceName}</td>
-                        <td>${this.coreMetrics.virtualUsers}</td>
-                        <td>${this.coreMetrics.durationSeconds}</td>
-                        <td>${this.coreMetrics.totalRequests}</td>
-                        <td class="response-time">${this.coreMetrics.avgResponseTime}</td>
-                        <td class="response-time">${this.coreMetrics.p95ResponseTime}</td>
-                        <td class="response-time">${this.coreMetrics.maxResponseTime}</td>
-                        <td class="success-rate">${this.coreMetrics.apiSuccessRate}%</td>
-                        <td>${this.coreMetrics.throughput}</td>
-                    </tr>
-                </tbody>
-            </table>
+            ${detailedInterfaceTable}
         </div>
         
         <div class="footer">
@@ -534,6 +535,206 @@ class K6CoreReportGenerator {
     </div>
 </body>
 </html>`;
+  }
+
+  // 生成详细接口统计表格
+  generateDetailedInterfaceTable(data) {
+    console.log('🔍 检查详细接口统计条件:');
+    console.log('   - data存在:', !!data);
+    console.log('   - data.metrics存在:', !!(data && data.metrics));
+    console.log('   - chat_response_success_rate存在:', !!(data && data.metrics && data.metrics.chat_response_success_rate));
+    console.log('   - api_call_success_rate存在:', !!(data && data.metrics && data.metrics.api_call_success_rate));
+    console.log('   - session_creation_success_rate存在:', !!(data && data.metrics && data.metrics.session_creation_success_rate));
+    
+    // 检查是否有任何接口的指标
+    const hasChatMetrics = data && data.metrics && data.metrics.chat_response_success_rate;
+    const hasApiCallMetrics = data && data.metrics && data.metrics.api_call_success_rate;
+    const hasSessionCreationMetrics = data && data.metrics && data.metrics.session_creation_success_rate;
+    
+    if (!data || !data.metrics || (!hasChatMetrics && !hasApiCallMetrics && !hasSessionCreationMetrics)) {
+      console.log('❌ 不满足显示详细接口统计的条件，返回空表格');
+      return '';
+    }
+    
+    console.log('✅ 满足显示详细接口统计的条件，生成表格');
+    
+    const metrics = data.metrics;
+    const totalDuration = this.coreMetrics.durationSeconds || 60;
+    const virtualUsers = this.coreMetrics.virtualUsers || 1;
+    
+    // 检测接口类型并提取相应的统计信息
+    let interfaceStats = [];
+    
+    // 检查是否有create-session接口（guest-chat测试或单独的create-session测试）
+    if (metrics.session_creation_success_rate || metrics.api_call_success_rate) {
+      const createSessionSuccessRate = metrics.session_creation_success_rate ? 
+        Math.round(metrics.session_creation_success_rate.value * 100) : 
+        (metrics.api_call_success_rate ? Math.round(metrics.api_call_success_rate.value * 100) : 0);
+      
+        const createSessionAvgResponseTime = metrics.create_response_duration ? 
+        Math.round(metrics.create_response_duration.avg || 0) : 
+        (metrics.api_call_duration ? Math.round(metrics.api_call_duration.avg || 0) : 'N/A');
+      const createSessionP95ResponseTime = metrics.create_response_duration ? 
+        Math.round(metrics.create_response_duration['p(95)'] || 0) : 
+        (metrics.api_call_duration ? Math.round(metrics.api_call_duration['p(95)'] || 0) : 'N/A');
+      const createSessionMaxResponseTime = metrics.create_response_duration ? 
+        Math.round(metrics.create_response_duration.max || 0) : 
+        (metrics.api_call_duration ? Math.round(metrics.api_call_duration.max || 0) : 'N/A');
+      
+      const createSessionRequests = metrics.session_creation_success_rate ? 
+        (metrics.session_creation_success_rate.passes || 0) : 
+        (metrics.api_call_success_rate ? (metrics.api_call_success_rate.passes || 0) : 0);    
+     
+      // 根据指标类型判断是游客接口还是已登录用户接口
+      const isUserSession = metrics.session_creation_success_rate && !metrics.api_call_success_rate;
+      const interfacePath = isUserSession ? '/godgpt/create-session' : '/godgpt/guest/create-session';
+      const interfaceName = isUserSession ? 'User Create-Session' : 'Create-Session';
+      
+      interfaceStats.push({
+        name: interfaceName,
+        path: interfacePath,
+        successRate: createSessionSuccessRate,
+        avgResponseTime: createSessionAvgResponseTime,
+        p95ResponseTime: createSessionP95ResponseTime,
+        maxResponseTime: createSessionMaxResponseTime,
+        requests: createSessionRequests
+      });
+      
+      console.log('📊 ' + interfaceName + '接口统计:');
+      console.log('   - 接口路径:', interfacePath);
+      console.log('   - 虚拟用户数:', virtualUsers + ' 个');
+      console.log('   - 执行时长:', totalDuration + ' 秒');
+      console.log('   - 成功率:', createSessionSuccessRate + '%');
+      console.log('   - 请求数:', createSessionRequests + ' 次');
+      console.log('   - 平均响应时间:', createSessionAvgResponseTime + ' ms');
+      console.log('   - 95分位响应时间:', createSessionP95ResponseTime + ' ms');
+      console.log('   - 最大响应时间:', createSessionMaxResponseTime + ' ms');
+    }
+    
+    // 检查是否有chat接口
+    if (metrics.chat_response_success_rate) {
+      const chatSuccessRate = Math.round(metrics.chat_response_success_rate.value * 100);
+      const chatAvgResponseTime = metrics.chat_response_duration ? 
+        Math.round(metrics.chat_response_duration.avg || 0) : 'N/A';
+      const chatP95ResponseTime = metrics.chat_response_duration ? 
+        Math.round(metrics.chat_response_duration['p(95)'] || 0) : 'N/A';
+      const chatMaxResponseTime = metrics.chat_response_duration ? 
+        Math.round(metrics.chat_response_duration.max || 0) : 'N/A';
+      const chatRequests = metrics.chat_response_success_rate.passes || 0;
+      
+      // 根据是否有session_creation_success_rate判断是游客还是已登录用户
+      const isUserChat = metrics.session_creation_success_rate && metrics.chat_response_success_rate;
+      const chatPath = isUserChat ? '/godgpt/chat' : '/godgpt/guest/chat';
+      const chatName = isUserChat ? 'User Chat' : 'Chat';
+      
+      interfaceStats.push({
+        name: chatName,
+        path: chatPath,
+        successRate: chatSuccessRate,
+        avgResponseTime: chatAvgResponseTime,
+        p95ResponseTime: chatP95ResponseTime,
+        maxResponseTime: chatMaxResponseTime,
+        requests: chatRequests
+      });
+      
+      console.log('📊 ' + chatName + '接口统计:');
+      console.log('   - 接口路径:', chatPath);
+      console.log('   - 虚拟用户数:', virtualUsers + ' 个');
+      console.log('   - 执行时长:', totalDuration + ' 秒');
+      console.log('   - 成功率:', chatSuccessRate + '%');
+      console.log('   - 请求数:', chatRequests + ' 次');
+      console.log('   - 平均响应时间:', chatAvgResponseTime + ' ms');
+      console.log('   - 95分位响应时间:', chatP95ResponseTime + ' ms');
+      console.log('   - 最大响应时间:', chatMaxResponseTime + ' ms');
+    }
+    
+    // 动态生成HTML表格
+    let htmlContent = `<h2 style="margin-top: 30px; color: #4facfe; text-align: center;">📋 接口独立统计</h2>`;
+    
+    // 为每个检测到的接口生成统计表格
+    interfaceStats.forEach((interfaceData, index) => {
+      let icon = '🔐';
+      let color = '#4facfe';
+      
+      if (interfaceData.name === 'User Create-Session') {
+        icon = '🔐';
+        color = '#4facfe';
+      } else if (interfaceData.name === 'Create-Session') {
+        icon = '🔐';
+        color = '#4facfe';
+      } else if (interfaceData.name === 'User Chat') {
+        icon = '💬';
+        color = '#ff6b6b';
+      } else if (interfaceData.name === 'Chat') {
+        icon = '💬';
+        color = '#ff6b6b';
+      }
+      
+             htmlContent += `
+         <!-- ${interfaceData.name}接口独立统计 -->
+         <div style="margin-top: 30px; background: #f8f9fa; border-radius: 12px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+             <h3 style="color: ${color}; margin-bottom: 15px; text-align: center;">${icon} ${interfaceData.name}接口统计</h3>
+             <table class="metrics-table" style="margin-top: 10px;">
+                 <thead>
+                     <tr>
+                         <th>指标名称</th>
+                         <th>数值</th>
+                         <th>状态</th>
+                     </tr>
+                 </thead>
+                 <tbody>
+                     <tr>
+                         <td class="interface-name">虚拟用户数</td>
+                         <td class="success-rate">${virtualUsers} 个</td>
+                         <td style="color: #28a745">✅ 正常</td>
+                     </tr>
+                     <tr>
+                         <td class="interface-name">执行时长</td>
+                         <td class="response-time">${totalDuration} 秒</td>
+                         <td style="color: #28a745">✅ 完整执行</td>
+                     </tr>
+                     <tr>
+                         <td class="interface-name">请求数</td>
+                         <td class="success-rate">${interfaceData.requests} 次</td>
+                         <td style="color: ${interfaceData.requests > 0 ? '#28a745' : '#dc3545'}">
+                             ${interfaceData.requests > 0 ? '✅ 有请求' : '❌ 无请求'}
+                         </td>
+                     </tr>
+                     <tr>
+                         <td class="interface-name">成功率</td>
+                         <td class="success-rate">${interfaceData.successRate}%</td>
+                         <td style="color: ${interfaceData.successRate === 100 ? '#28a745' : '#dc3545'}">
+                             ${interfaceData.successRate === 100 ? '✅ 正常' : '❌ 异常'}
+                         </td>
+                     </tr>
+                     <tr>
+                         <td class="interface-name">平均响应时间</td>
+                         <td class="response-time">${interfaceData.avgResponseTime} ms</td>
+                         <td style="color: ${interfaceData.avgResponseTime < 1000 ? '#28a745' : interfaceData.avgResponseTime < 2000 ? '#ffc107' : '#dc3545'}">
+                             ${interfaceData.avgResponseTime < 1000 ? '✅ 优秀' : interfaceData.avgResponseTime < 2000 ? '⚠️ 一般' : '❌ 较慢'}
+                         </td>
+                     </tr>
+                     <tr>
+                         <td class="interface-name">95分位响应时间</td>
+                         <td class="response-time">${interfaceData.p95ResponseTime} ms</td>
+                         <td style="color: ${interfaceData.p95ResponseTime < 1500 ? '#28a745' : interfaceData.p95ResponseTime < 3000 ? '#ffc107' : '#dc3545'}">
+                             ${interfaceData.p95ResponseTime < 1500 ? '✅ 优秀' : interfaceData.p95ResponseTime < 3000 ? '⚠️ 一般' : '❌ 较慢'}
+                         </td>
+                     </tr>
+                     <tr>
+                         <td class="interface-name">最大响应时间</td>
+                         <td class="response-time">${interfaceData.maxResponseTime} ms</td>
+                         <td style="color: ${interfaceData.maxResponseTime < 2000 ? '#28a745' : interfaceData.maxResponseTime < 4000 ? '#ffc107' : '#dc3545'}">
+                             ${interfaceData.maxResponseTime < 2000 ? '✅ 优秀' : interfaceData.maxResponseTime < 4000 ? '⚠️ 一般' : '❌ 较慢'}
+                         </td>
+                     </tr>
+                 </tbody>
+             </table>
+         </div>
+       `;
+    });
+    
+    return htmlContent;
   }
 
   // 运行报告生成 ⭐ 改进错误处理

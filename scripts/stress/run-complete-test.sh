@@ -45,6 +45,12 @@ print_debug() {
 log_error() {
     local error_msg="$1"
     local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+    
+    # 确保错误日志文件存在
+    if [ ! -f "$ERROR_LOG_FILE" ]; then
+        touch "$ERROR_LOG_FILE"
+    fi
+    
     echo "[$timestamp] ERROR: $error_msg" >> "$ERROR_LOG_FILE"
     print_error "$error_msg"
 }
@@ -149,6 +155,13 @@ ERROR_LOG_FILE="${REPORTS_DIR}/error_${TEST_NAME}_${TIMESTAMP}.log"
 mkdir -p "$OUTPUTS_DIR"
 mkdir -p "$REPORTS_DIR"
 
+# 创建错误日志文件
+touch "$ERROR_LOG_FILE"
+
+# 记录测试开始信息
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] INFO: 开始执行测试 - $TEST_NAME" >> "$ERROR_LOG_FILE"
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] INFO: 测试脚本: $TEST_SCRIPT" >> "$ERROR_LOG_FILE"
+
 print_info "🚀 开始K6完整测试流程..."
 print_debug "错误日志将保存到: $ERROR_LOG_FILE"
 echo
@@ -219,6 +232,10 @@ else
     exit 1
 fi
 
+
+# 记录测试完成信息
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] INFO: 测试执行完成 - $TEST_NAME" >> "$ERROR_LOG_FILE"
+
 echo
 print_success "🎉 测试完成！双重报告已生成"
 echo
@@ -250,12 +267,32 @@ if [ -f "$NATIVE_FILE" ]; then
 fi
 
 # ⭐ 显示错误日志状态
-if [ -f "$ERROR_LOG_FILE" ] && [ -s "$ERROR_LOG_FILE" ]; then
-    ERROR_SIZE=$(ls -lh "$ERROR_LOG_FILE" | awk '{print $5}')
-    echo "   - 错误日志: $ERROR_SIZE"
-    print_warning "发现错误日志，建议查看: cat $ERROR_LOG_FILE"
+if [ -f "$ERROR_LOG_FILE" ]; then
+    if [ -s "$ERROR_LOG_FILE" ]; then
+        ERROR_SIZE=$(ls -lh "$ERROR_LOG_FILE" | awk '{print $5}')
+        ERROR_LINES=$(wc -l < "$ERROR_LOG_FILE")
+        echo "   - 错误日志: $ERROR_SIZE ($ERROR_LINES 行)"
+        
+        # 统计错误类型
+        ERROR_COUNT=$(grep -c "ERROR:" "$ERROR_LOG_FILE" 2>/dev/null || echo "0")
+        WARNING_COUNT=$(grep -c "WARNING:" "$ERROR_LOG_FILE" 2>/dev/null || echo "0")
+        
+        # 去除可能的换行符
+        ERROR_COUNT=$(echo "$ERROR_COUNT" | tr -d '\n\r')
+        WARNING_COUNT=$(echo "$WARNING_COUNT" | tr -d '\n\r')
+        
+        if [ "$ERROR_COUNT" -gt 0 ]; then
+            print_warning "发现 $ERROR_COUNT 个错误，建议查看: cat $ERROR_LOG_FILE"
+        elif [ "$WARNING_COUNT" -gt 0 ]; then
+            print_info "发现 $WARNING_COUNT 个警告，详情: cat $ERROR_LOG_FILE"
+        else
+            echo "   - 状态: 仅包含信息日志 ✅"
+        fi
+    else
+        echo "   - 错误日志: 0B (无错误记录) ✅"
+    fi
 else
-    echo "   - 错误日志: 无错误记录 ✅"
+    echo "   - 错误日志: 文件未创建 ❌"
 fi
 
 echo
