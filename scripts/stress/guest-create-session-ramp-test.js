@@ -27,7 +27,7 @@ export const options = {
       startVUs: 0,
       stages: [
         { duration: '1m', target: 100 },   // 0→50用户（30s爬坡）
-        { duration: '5m', target: 50 },    // 持续1分钟
+        { duration: '5m', target: 100 },    // 持续1分钟
       ],
       tags: { test_type: 'ramp_up' },
     },
