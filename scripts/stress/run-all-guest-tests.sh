@@ -45,3 +45,7 @@ TIMESTAMP=$(date +%Y%m%d-%H%M%S) && k6 run -e VUS_COUNT=1000 --summary-export=..
 # 3. 其他QPS示例
 ./run-guest-create-session-qps-test.sh 100
 ./run-guest-create-session-qps-test.sh 200
+
+
+
+k6 run -e TARGET_QPS=1 guest-chat-qps-test.js

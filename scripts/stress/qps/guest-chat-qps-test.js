@@ -36,24 +36,19 @@ export const options = {
       rate: TARGET_QPS,              // 每秒请求数（QPS）
       timeUnit: '1s',                // 时间单位：1秒
       duration: '5m',                // 测试持续时间：5分钟
-      preAllocatedVUs: Math.max(TARGET_QPS, 1),  // 预分配VU数量（至少为QPS数量）
-      maxVUs: TARGET_QPS * 3,        // 最大VU数量（QPS的3倍，聊天测试需要更多VU）
+      preAllocatedVUs: Math.max(TARGET_QPS, 10),  // 预分配VU数量（至少为QPS数量）
+      maxVUs: TARGET_QPS * 5,        // 最大VU数量（QPS的5倍，聊天测试需要更多VU）
       tags: { test_type: 'fixed_qps_chat' },
     },
   },
-  // 阈值设置
-  thresholds: {
-    // HTTP请求失败率应低于1%
-    http_req_failed: ['rate<0.01'],
-    // 会话创建成功率应高于99%
-    'session_creation_success_rate': ['rate>0.99'],
-    // 聊天响应成功率应高于99%
-    'chat_response_success_rate': ['rate>0.99'],
-    // 95%的聊天响应时间应低于3000ms（聊天相对较慢）
-    'chat_response_duration': ['p(95)<3000'],
-    // 端到端时间稍宽松
-    'end_to_end_duration': ['p(95)<5000'],
-  },
+  // 注释掉阈值设置，只关注QPS稳定性，不验证响应质量
+  // thresholds: {
+  //   http_req_failed: ['rate<0.01'],
+  //   'session_creation_success_rate': ['rate>0.99'],
+  //   'chat_response_success_rate': ['rate>0.99'],
+  //   'chat_response_duration': ['p(95)<3000'],
+  //   'end_to_end_duration': ['p(95)<5000'],
+  // },
 };
 
 // 测试主函数

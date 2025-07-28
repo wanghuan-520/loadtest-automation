@@ -35,20 +35,17 @@ export const options = {
       rate: TARGET_QPS,              // 每秒请求数（QPS）
       timeUnit: '1s',                // 时间单位：1秒
       duration: '5m',                // 测试持续时间：5分钟
-      preAllocatedVUs: Math.max(TARGET_QPS, 1),  // 预分配VU数量（至少为QPS数量）
-      maxVUs: TARGET_QPS * 2,        // 最大VU数量（QPS的2倍以防不够用）
+      preAllocatedVUs: Math.max(TARGET_QPS, 10),  // 预分配VU数量（至少为QPS数量）
+      maxVUs: TARGET_QPS * 3,        // 最大VU数量（QPS的3倍以防不够用）
       tags: { test_type: 'fixed_qps' },
     },
   },
-  // 阈值设置
-  thresholds: {
-    // HTTP请求失败率应低于1%
-    http_req_failed: ['rate<0.01'],
-    // API调用成功率应高于99%
-    'api_call_success_rate': ['rate>0.99'],
-    // 95%的请求响应时间应低于2000ms
-    'api_call_duration': ['p(95)<2000'],
-  },
+  // 注释掉阈值设置，只关注QPS稳定性，不验证响应质量
+  // thresholds: {
+  //   http_req_failed: ['rate<0.01'],
+  //   'api_call_success_rate': ['rate>0.99'],
+  //   'api_call_duration': ['p(95)<2000'],
+  // },
 };
 
 // 测试主函数

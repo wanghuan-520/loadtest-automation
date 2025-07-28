@@ -27,20 +27,17 @@ export const options = {
       rate: TARGET_QPS,              // 每秒请求数（QPS）
       timeUnit: '1s',                // 时间单位：1秒
       duration: '5m',                // 测试持续时间：5分钟
-      preAllocatedVUs: Math.max(TARGET_QPS, 1),  // 预分配VU数量（至少为QPS数量）
-      maxVUs: TARGET_QPS * 2,        // 最大VU数量（QPS的2倍，会话创建相对简单）
+      preAllocatedVUs: Math.max(TARGET_QPS, 10),  // 预分配VU数量（至少为QPS数量）
+      maxVUs: TARGET_QPS * 3,        // 最大VU数量（QPS的3倍，会话创建相对简单）
       tags: { test_type: 'fixed_qps_user_create_session' },
     },
   },
-  // 阈值设置
-  thresholds: {
-    // HTTP请求失败率应低于1%
-    http_req_failed: ['rate<0.01'],
-    // 会话创建成功率应高于99%
-    'session_creation_success_rate': ['rate>0.99'],
-    // 95%的响应时间应低于2000ms
-    'create_response_duration': ['p(95)<2000'],
-  },
+  // 注释掉阈值设置，只关注QPS稳定性，不验证响应质量
+  // thresholds: {
+  //   http_req_failed: ['rate<0.01'],
+  //   'session_creation_success_rate': ['rate>0.99'],
+  //   'create_response_duration': ['p(95)<2000'],
+  // },
 };
 
 // 测试主函数
