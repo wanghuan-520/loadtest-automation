@@ -4,8 +4,8 @@ import { Rate, Trend } from 'k6/metrics';
 
 // 使用说明：
 // 默认目标QPS: 50 QPS（每秒50个请求，持续5分钟）
-// 自定义目标QPS: k6 run -e TARGET_QPS=100 guest-create-session-fixed-qps-test.js
-// 示例: k6 run -e TARGET_QPS=80 guest-create-session-fixed-qps-test.js
+// 自定义目标QPS: k6 run -e TARGET_QPS=100 guest-create-session-qps-test.js
+// 示例: k6 run -e TARGET_QPS=80 guest-create-session-qps-test.js
 
 // 自定义指标
 const apiCallSuccessRate = new Rate('api_call_success_rate');

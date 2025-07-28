@@ -4,8 +4,8 @@ import { Rate, Trend } from 'k6/metrics';
 
 // 使用说明：
 // 默认目标QPS: 30 QPS（每秒30个请求，持续5分钟）
-// 自定义目标QPS: k6 run -e TARGET_QPS=50 guest-chat-fixed-qps-test.js
-// 示例: k6 run -e TARGET_QPS=40 guest-chat-fixed-qps-test.js
+// 自定义目标QPS: k6 run -e TARGET_QPS=50 guest-chat-qps-test.js
+// 示例: k6 run -e TARGET_QPS=40 guest-chat-qps-test.js
 
 // 自定义指标
 const sessionCreationRate = new Rate('session_creation_success_rate');
