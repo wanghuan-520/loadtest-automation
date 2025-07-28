@@ -145,7 +145,7 @@ export default function () {
     timeout: '30s',
   };
   
-  const chatResponse = http.post(`${config.baseUrl}/gotgpt/chat`, JSON.stringify(chatPayload), chatParams);
+  const chatResponse = http.post(`${config.baseUrl}/godgpt/chat`, JSON.stringify(chatPayload), chatParams);
   
   // 验证聊天响应 - 只检查HTTP状态码200
   const isChatSuccess = chatResponse.status === 200;
@@ -169,7 +169,7 @@ export default function () {
 // 测试设置阶段
 export function setup() {
   console.log('🎯 开始 user/chat 固定QPS压力测试...');
-  console.log(`📡 测试目标: ${config.baseUrl}/gotgpt/chat`);
+  console.log(`📡 测试目标: ${config.baseUrl}/godgpt/chat`);
   console.log(`🔧 测试场景: 固定QPS测试 (${TARGET_QPS} QPS，持续5分钟)`);
   console.log(`⚡ 目标QPS: ${TARGET_QPS} (可通过 TARGET_QPS 环境变量配置)`);
   console.log(`🔄 预估总请求数: ${TARGET_QPS * 300} 个 (${TARGET_QPS} QPS × 300秒)`);
