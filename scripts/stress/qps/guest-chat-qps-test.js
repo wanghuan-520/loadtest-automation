@@ -20,12 +20,26 @@ const testData = JSON.parse(open('../../../config/test-data.json'));
 // 获取目标QPS参数，默认值为30
 const TARGET_QPS = __ENV.TARGET_QPS ? parseInt(__ENV.TARGET_QPS) : 30;
 
-// 随机选择测试消息
-function getRandomMessage() {
-  const messages = testData.messages;
-  const randomIndex = Math.floor(Math.random() * messages.length);
-  return messages[randomIndex].content;
+// 生成随机IP地址的函数
+function generateRandomIP() {
+  const octet1 = Math.floor(Math.random() * 256);
+  const octet2 = Math.floor(Math.random() * 256);
+  const octet3 = Math.floor(Math.random() * 256);
+  const octet4 = Math.floor(Math.random() * 256);
+  return `${octet1}.${octet2}.${octet3}.${octet4}`;
 }
+
+// 生成随机User-Agent
+function generateRandomUserAgent() {
+  const chromeVersions = ['138.0.0.0', '137.0.0.0', '136.0.0.0', '135.0.0.0'];
+  const webkitVersions = ['537.36', '537.35', '537.34'];
+  const chromeVersion = chromeVersions[Math.floor(Math.random() * chromeVersions.length)];
+  const webkitVersion = webkitVersions[Math.floor(Math.random() * webkitVersions.length)];
+  
+  return `Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/${webkitVersion} (KHTML, like Gecko) Chrome/${chromeVersion} Safari/${webkitVersion}`;
+}
+
+
 
 // 固定QPS压力测试场景配置
 export const options = {
@@ -55,7 +69,11 @@ export const options = {
 export default function () {
   const startTime = Date.now();
   
-  // 构造会话创建请求头 - 匹配curl命令
+  // 生成随机信息避免聊天次数限制
+  const randomIP = generateRandomIP();
+  const randomUserAgent = generateRandomUserAgent();
+  
+  // 构造会话创建请求头 - 使用随机User-Agent
   const sessionHeaders = {
     'accept': '*/*',
     'accept-language': 'zh-CN,zh;q=0.9',
@@ -68,14 +86,20 @@ export default function () {
     'sec-fetch-dest': 'empty',
     'sec-fetch-mode': 'cors',
     'sec-fetch-site': 'cross-site',
-    'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36',
+    'user-agent': randomUserAgent,
   };
-
-  // 步骤1：创建会话 - 使用正确的请求体
+  
+  // 步骤1：创建会话 - 使用正确的请求体和随机信息
   const createSessionResponse = http.post(
     `${config.baseUrl}/godgpt/guest/create-session`,
-    JSON.stringify({"guider": ""}),
-    { headers: sessionHeaders }
+    JSON.stringify({
+      guider: "",
+      ip: randomIP
+    }),
+    { 
+      headers: sessionHeaders,
+      timeout: '30s',
+    }
   );
 
   // 简化会话创建验证 - 只检查HTTP状态码200
@@ -94,36 +118,46 @@ export default function () {
     return;
   }
 
+
+
   // 步骤2：发送聊天消息
-  const message = getRandomMessage();
+  const randomMessage = testData.messages[Math.floor(Math.random() * testData.messages.length)];
   
-  // 构造聊天请求头 - 匹配curl命令，支持SSE流式响应
+  // 构造聊天请求头 - 参照成功案例格式，支持SSE流式响应
   const chatHeaders = {
     'accept': 'text/event-stream',
     'accept-language': 'zh-CN,zh;q=0.9',
     'content-type': 'application/json',
     'origin': config.origin,
     'referer': config.referer,
+    'priority': 'u=1, i',
     'sec-ch-ua': '"Not)A;Brand";v="8", "Chromium";v="138", "Google Chrome";v="138"',
     'sec-ch-ua-mobile': '?0',
     'sec-ch-ua-platform': '"macOS"',
     'sec-fetch-dest': 'empty',
     'sec-fetch-mode': 'cors',
     'sec-fetch-site': 'cross-site',
-    'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36',
+    'user-agent': randomUserAgent,
   };
   
-  // 使用正确的请求体格式
+  // 使用正确的请求体格式 - 参照成功案例
   const chatPayload = {
-    content: message,
+    content: randomMessage.content,
+    images: [],
     region: "",
+    ip: randomIP
   };
 
   const chatResponse = http.post(
     `${config.baseUrl}/godgpt/guest/chat`,
     JSON.stringify(chatPayload),
-    { headers: chatHeaders }
+    { 
+      headers: chatHeaders,
+      timeout: '30s',
+    }
   );
+
+
 
   // 验证聊天响应 - 只检查HTTP状态码200
   const isChatSuccess = chatResponse.status === 200;
