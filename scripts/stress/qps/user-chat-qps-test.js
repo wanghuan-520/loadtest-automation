@@ -18,8 +18,21 @@ const endToEndDuration = new Trend('end_to_end_duration');
 const config = JSON.parse(open('../../../config/env.dev.json'));
 const testData = JSON.parse(open('../../../config/test-data.json'));
 
+// 尝试从tokens.json文件加载token配置
+let tokenConfig = {};
+try {
+  tokenConfig = JSON.parse(open('../../../config/tokens.json'));
+} catch (error) {
+  console.log('⚠️  未找到tokens.json配置文件，将使用环境变量或默认token');
+}
+
 // 获取目标QPS参数，默认值为20
 const TARGET_QPS = __ENV.TARGET_QPS ? parseInt(__ENV.TARGET_QPS) : 20;
+
+// 获取Bearer Token，优先级：环境变量 > tokens.json > 默认值
+const BEARER_TOKEN = __ENV.BEARER_TOKEN || 
+                    tokenConfig.user_bearer_token || 
+                    'eyJhbGciOiJSUzI1NiIsImtpZCI6IjVEQzMyOTBDQzUyRTU2OEM0MEQ0ODA1NDc0REQ5NjMzOEM5MTAzMkMiLCJ4NXQiOiJYY01wRE1VdVZveEExSUJVZE4yV000eVJBeXciLCJ0eXAiOiJhdCtqd3QifQ.eyJpc3MiOiJodHRwczovL2F1dGgtc3RhdGlvbi1zdGFnaW5nLmFldmF0YXIuYWkvIiwiZXhwIjoxNzUzODY2Nzg2LCJpYXQiOjE3NTM2OTM5ODcsImF1ZCI6IkFldmF0YXIiLCJzY29wZSI6IkFldmF0YXIgb2ZmbGluZV9hY2Nlc3MiLCJqdGkiOiJjMzBiMGVlMy1lMjJjLTRlZTUtYWU5Ny00ZWNiZWM5NTJkZDUiLCJzdWIiOiI3ZGQ5MTJkOS0wNTc3LWU0MDctZTdjYS0zYTFiNjI3Yjc5MzUiLCJwcmVmZXJyZWRfdXNlcm5hbWUiOiJsb2FkdGVzdHdoMSIsImVtYWlsIjoibG9hZHRlc3R3aDFAdGVtbC5uZXQiLCJyb2xlIjpbImJhc2ljVXNlciIsInN5c3RlbVByb21wdEdyb3VwIl0sInBob25lX251bWJlcl92ZXJpZmllZCI6IkZhbHNlIiwiZW1haWxfdmVyaWZpZWQiOiJGYWxzZSIsInVuaXF1ZV9uYW1lIjoibG9hZHRlc3R3aDEiLCJzZWN1cml0eV9zdGFtcCI6IkJaSlJRVElCM1Y2TjVTRjJHWVJGQldSQUVFK001TVM0Iiwib2lfcHJzdCI6IkFldmF0YXJBdXRoU2VydmVyIiwib2lfYXVfaWQiOiIzZWZkMmY2ZS0zMzAxLTk1M2QtZTk2NS0zYTFiNjI3YjdjOGYiLCJjbGllbnRfaWQiOiJBZXZhdGFyQXV0aFNlcnZlciIsIm9pX3Rrbl9pZCI6ImQ1NDFjZmJhLWJiOTgtZTYyMy02NmNjLTNhMWI2MjdiN2M5NSJ9.MDfOFgkKLvvkMNK_L66uaToRRV-hDtV05_ysb3S4Oe47bBnwJGLaA6urwa3XzsCHnHne_IEy0jMl376N4G2mEX5fXPV0TSI929ksNfvYwTOKyubXMrrBmmv82hQacIVQfcaul5gJuUNKTJY8a-5ULgHv3eQ9tv9uuL8kVmNoc2q4ji21dujrnN4z0b_9W-MC9mv8hkFLm_trf_4zI470JoQkNi6z9q9kqv8tyrcUTq055BiqgbuVyGcd_lIZ3HVhNmOWUIYXLE_tHTgG15knVdF0HZZl62Ke5qMPaieKo6aF_DVBu6yF0jHKI1WxuWentu4uVEq54fYs7PXL-9oOTA';
 
 // 固定QPS压力测试场景配置
 export const options = {
@@ -59,7 +72,7 @@ export default function () {
   const sessionHeaders = {
     'accept': '*/*',
     'accept-language': 'zh-CN,zh;q=0.9',
-    'authorization': 'Bearer eyJhbGciOiJSUzI1NiIsImtpZCI6IjVEQzMyOTBDQzUyRTU2OEM0MEQ0ODA1NDc0REQ5NjMzOEM5MTAzMkMiLCJ4NXQiOiJYY01wRE1VdVZveEExSUJVZE4yV000eVJBeXciLCJ0eXAiOiJhdCtqd3QifQ.eyJpc3MiOiJodHRwczovL2F1dGgtc3RhdGlvbi1zdGFnaW5nLmFldmF0YXIuYWkvIiwiZXhwIjoxNzUzNTE5Nzc3LCJpYXQiOjE3NTMzNDY5NzgsImF1ZCI6IkFldmF0YXIiLCJzY29wZSI6IkFldmF0YXIgb2ZmbGluZV9hY2Nlc3MiLCJqdGkiOiJhZWQwNDI5Ni1mMWZkLTQxNGUtODhjNS02ZmMwNmVlZWFjNWYiLCJzdWIiOiJhZjQ4N2NkNy00YzkzLTRmZjctYTA1NS02MDNiNmE2Mzg3NjciLCJwcmVmZXJyZWRfdXNlcm5hbWUiOiJoYWhhbmljZWNhdEBnbWFpbC5jb21AZ29vZ2xlIiwiZW1haWwiOiJhMzg4MDNkMDY0ZGU0NWY0OTY5OWRhZTJkYjU4ZWZlOUBBQlAuSU8iLCJyb2xlIjoiYmFzaWNVc2VyIiwicGhvbmVfbnVtYmVyX3ZlcmlmaWVkIjoiRmFsc2UiLCJlbWFpbF92ZXJpZmllZCI6IkZhbHNlIiwidW5pcXVlX25hbWUiOiJoYWhhbmljZWNhdEBnbWFpbC5jb21AZ29vZ2xlIiwic2VjdXJpdHlfc3RhbXAiOiI3UEZZV1NZTFFDUjI2NEWER0EzM05WRUxISFdSRlhLUCIsIm9pX3Byc3QiOiJBZXZhdGFyQXV0aFNlcnZlciIsIm9pX2F1X2lkIjoiMWE2NWRjZDQtZTM4ZC0wNzM4LTMyMTUtM2ExYjRkY2M4OWQ3IiwiY2xpZW50X2lkIjoiQWV2YXRhckF1dGhTZXJ2ZXIiLCJvaV90a25faWQiOiJhM2M5MzNkOC0yZmZiLWRjOWEtNjljNi0zYTFiNGRjYzg5ZGMifQ.RYQ8izYLQiyW3cu9s77tII0bUDwULpJZkfcY_OWsKgxonGdjPDX0-nSCkKQ3xTxr7Kw-xyWZbd3nnWEh_9_rNcPkOVr2Pgvs1WQsrFPOND-ohkJciuKQVMqosQrL8R3_nUyEMH3WfiDqgRg9q0isR6xtKGA9es2sef9JLGcpwCm-bximgjrnNms7MQoIhka8QE0x_mxCi0ryAFDL74k09PcB03fG2WW7EX-spFoV6z16_qz3eY2h7_ov82ceWhX_J7xkRnoqVSwzNlBnw4uMrBTrOHnMGeKKgufO0PmuY_M_UAXQ7hGNWCiVyj_DCRc_cPTF4gD7rftOOjbw64691g',
+    'authorization': `Bearer ${BEARER_TOKEN}`,
     'content-type': 'application/json',
     'origin': config.origin,
     'priority': 'u=1, i',
@@ -118,7 +131,7 @@ export default function () {
   const chatHeaders = {
     'accept': 'text/event-stream',
     'accept-language': 'zh-CN,zh;q=0.9',
-    'authorization': 'Bearer eyJhbGciOiJSUzI1NiIsImtpZCI6IjVEQzMyOTBDQzUyRTU2OEM0MEQ0ODA1NDc0REQ5NjMzOEM5MTAzMkMiLCJ4NXQiOiJYY01wRE1VdVZveEExSUJVZE4yV000eVJBeXciLCJ0eXAiOiJhdCtqd3QifQ.eyJpc3MiOiJodHRwczovL2F1dGgtc3RhdGlvbi1zdGFnaW5nLmFldmF0YXIuYWkvIiwiZXhwIjoxNzUzNTE5Nzc3LCJpYXQiOjE3NTMzNDY5NzgsImF1ZCI6IkFldmF0YXIiLCJzY29wZSI6IkFldmF0YXIgb2ZmbGluZV9hY2Nlc3MiLCJqdGkiOiJhZWQwNDI5Ni1mMWZkLTQxNGUtODhjNS02ZmMwNmVlZWFjNWYiLCJzdWIiOiJhZjQ4N2NkNy00YzkzLTRmZjctYTA1NS02MDNiNmE2Mzg3NjciLCJwcmVmZXJyZWRfdXNlcm5hbWUiOiJoYWhhbmljZWNhdEBnbWFpbC5jb21AZ29vZ2xlIiwiZW1haWwiOiJhMzg4MDNkMDY0ZGU0NWY0OTY5OWRhZTJkYjU4ZWZlOUBBQlAuSU8iLCJyb2xlIjoiYmFzaWNVc2VyIiwicGhvbmVfbnVtYmVyX3ZlcmlmaWVkIjoiRmFsc2UiLCJlbWFpbF92ZXJpZmllZCI6IkZhbHNlIiwidW5pcXVlX25hbWUiOiJoYWhhbmljZWNhdEBnbWFpbC5jb21AZ29vZ2xlIiwic2VjdXJpdHlfc3RhbXAiOiI3UEZZV1NZTFFDUjI2ROZWT0EzM05WRUxISFdSRlhLUCIsIm9pX3Byc3QiOiJBZXZhdGFyQXV0aFNlcnZlciIsIm9pX2F1X2lkIjoiMWE2NWRjZDQtZTM4ZC0wNzM4LTMyMTUtM2ExYjRkY2M4OWQ3IiwiY2xpZW50X2lkIjoiQWV2YXRhckF1dGhTZXJ2ZXIiLCJvaV90a25faWQiOiJhM2M5MzNkOC0yZmZiLWRjOWEtNjljNi0zYTFiNGRjYzg5ZGMifQ.RYQ8izYLQiyW3cu9s77tII0bUDwULpJZkfcY_OWsKgxonGdjPDX0-nSCkKQ3xTxr7Kw-xyWZbd3nnWEh_9_rNcPkOVr2Pgvs1WQsrFPOND-ohkJciuKQVMqosQrL8R3_nUyEMH3WfiDqgRg9q0isR6xtKGA9es2sef9JLGcpwCm-bximgjrnNms7MQoIhka8QE0x_mxCi0ryAFDL74k09PcB03fG2WW7EX-spFoV6z16_qz3eY2h7_ov82ceWhX_J7xkRnoqVSwzNlBnw4uMrBTrOHnMGeKKgufO0PmuY_M_UAXQ7hGNWCiVyj_DCRc_cPTF4gD7rftOOjbw64691g',
+    'authorization': `Bearer ${BEARER_TOKEN}`,
     'content-type': 'application/json',
     'origin': config.origin,
     'priority': 'u=1, i',
@@ -173,7 +186,8 @@ export function setup() {
   console.log(`🔧 测试场景: 固定QPS测试 (${TARGET_QPS} QPS，持续5分钟)`);
   console.log(`⚡ 目标QPS: ${TARGET_QPS} (可通过 TARGET_QPS 环境变量配置)`);
   console.log(`🔄 预估总请求数: ${TARGET_QPS * 300} 个 (${TARGET_QPS} QPS × 300秒)`);
-  console.log('🔐 认证方式: Bearer Token');
+  console.log('🔐 认证方式: Bearer Token (可通过 BEARER_TOKEN 环境变量配置)');
+  console.log('💡 使用示例: k6 run -e TARGET_QPS=20 -e BEARER_TOKEN="your_token" user-chat-qps-test.js');
   console.log('🌊 测试流程: create-session → chat (SSE流式响应)');
   console.log('⏱️  预计测试时间: 5分钟');
   return { baseUrl: config.baseUrl };

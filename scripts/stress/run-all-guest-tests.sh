@@ -48,4 +48,9 @@ TIMESTAMP=$(date +%Y%m%d-%H%M%S) && k6 run -e VUS_COUNT=1000 --summary-export=..
 
 
 
-k6 run -e TARGET_QPS=1 guest-chat-qps-test.js
+k6 run -e TARGET_QPS=10 scripts/stress/qps/guest-chat-qps-test.js
+k6 run -e TARGET_QPS=20 scripts/stress/qps/guest-chat-qps-test.js
+k6 run -e TARGET_QPS=50 scripts/stress/qps/guest-chat-qps-test.js
+
+
+k6 run -e TARGET_QPS=1 guest-create-session-qps-test.js

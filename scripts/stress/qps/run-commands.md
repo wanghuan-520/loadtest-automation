@@ -51,6 +51,7 @@ k6 run -e TARGET_QPS=1 --duration=30s scripts/stress/qps/guest-chat-qps-test.js
 k6 run -e TARGET_QPS=2 --duration=1m scripts/stress/qps/guest-chat-qps-test.js
 
 # 常规测试
+k6 run -e TARGET_QPS=1 scripts/stress/qps/guest-chat-qps-test.js
 k6 run -e TARGET_QPS=10 scripts/stress/qps/guest-chat-qps-test.js
 k6 run -e TARGET_QPS=20 scripts/stress/qps/guest-chat-qps-test.js
 k6 run -e TARGET_QPS=30 scripts/stress/qps/guest-chat-qps-test.js
@@ -74,7 +75,9 @@ k6 run scripts/stress/qps/user-create-session-qps-test.js
 #### 自定义QPS
 ```bash
 # 低负载测试
+k6 run -e TARGET_QPS=1 scripts/stress/qps/user-create-session-qps-test.js
 k6 run -e TARGET_QPS=5 scripts/stress/qps/user-create-session-qps-test.js
+k6 run -e TARGET_QPS=10 scripts/stress/qps/user-create-session-qps-test.js
 k6 run -e TARGET_QPS=20 scripts/stress/qps/user-create-session-qps-test.js
 
 # 中等负载测试
