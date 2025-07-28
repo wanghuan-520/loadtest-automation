@@ -58,7 +58,7 @@ export default function (data) {
   // 构造已登录用户的create-session请求
   const createSessionUrl = `${data.baseUrl}/godgpt/create-session`;
   const createSessionPayload = JSON.stringify({
-    guider: ''
+    guider: ''  // 使用原始请求体格式
   });
   
   // 构造请求头 - 匹配curl命令，包含authorization token
