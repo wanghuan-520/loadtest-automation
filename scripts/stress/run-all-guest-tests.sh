@@ -32,6 +32,11 @@ TIMESTAMP=$(date +%Y%m%d-%H%M%S) && k6 run -e VUS_COUNT=1000 --summary-export=..
 
 ===============================================
 # 1. 使用50 QPS测试（您的需求）
+
+./run-guest-create-session-qps-test.sh 1
+
+./run-guest-create-session-qps-test.sh 10
+
 ./run-guest-create-session-qps-test.sh 50
 
 # 2. 使用默认50 QPS（不传参数）
