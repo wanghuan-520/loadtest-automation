@@ -30,7 +30,7 @@ export const options = {
       rate: TARGET_QPS,              // 每秒请求数（QPS）
       timeUnit: '1s',                // 时间单位：1秒
       duration: '5m',                // 测试持续时间：5分钟
-      preAllocatedVUs: Math.max(TARGET_QPS, 10),  // 预分配VU数量（至少为QPS数量）
+      preAllocatedVUs: Math.max(TARGET_QPS, 1),  // 预分配VU数量（至少为QPS数量）
       maxVUs: TARGET_QPS * 5,        // 最大VU数量（QPS的5倍，认证用户聊天需要更多VU）
       tags: { test_type: 'fixed_qps_user_chat' },
     },
