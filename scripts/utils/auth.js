@@ -1,8 +1,14 @@
 import http from 'k6/http';
 
 /**
- * 动态获取Bearer Token的函数
- * 优先级：环境变量 > 动态获取 > 配置文件回退
+ * 动态获取Bearer Token的函数 (使用password模式认证)
+ * 优先级：环境变量BEARER_TOKEN > 动态获取(使用用户名密码) > 配置文件回退
+ * 
+ * 环境变量说明：
+ * - BEARER_TOKEN: 直接指定token，跳过动态获取
+ * - AUTH_USERNAME: 认证用户名 (默认: loadtestloadwh1@teml.net)
+ * - AUTH_PASSWORD: 认证密码 (默认: Wh520520!)
+ * 
  * @param {Object} tokenConfig - tokens.json配置对象
  * @returns {string} Bearer Token
  */
@@ -15,16 +21,26 @@ export function getAccessToken(tokenConfig = {}) {
 
   console.log('🔄 正在动态获取Bearer Token...');
   
-  // 动态获取token
+  // 从环境变量获取用户名和密码，或使用默认值
+  const username = __ENV.AUTH_USERNAME || 'loadtestloadwh1@teml.net';
+  const password = __ENV.AUTH_PASSWORD || 'Wh520520!';
+  
+  // 动态获取token - 使用password模式
   const tokenResponse = http.post('https://auth-station-dev-staging.aevatar.ai/connect/token', {
-    'grant_type': 'client_credentials',
-    'client_id': 'Test',
-    'client_secret': 'Test123',
-    'scope': 'Aevatar'
+    'grant_type': 'password',
+    'client_id': 'AevatarAuthServer',
+    'apple_app_id': 'com.gpt.god',
+    'scope': 'Aevatar offline_access',
+    'username': username,
+    'password': password
   }, {
     headers: {
-      'Accept': 'application/json',
-      'Content-Type': 'application/x-www-form-urlencoded'
+      'accept': 'application/json',
+      'accept-language': 'en,zh-CN;q=0.9,zh;q=0.8',
+      'content-type': 'application/x-www-form-urlencoded',
+      'origin': 'https://godgpt-ui-testnet.aelf.dev',
+      'referer': 'https://godgpt-ui-testnet.aelf.dev/',
+      'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36'
     }
   });
 
@@ -56,7 +72,9 @@ export function setupTest(config, tokenConfig, testName, targetQps, apiEndpoint,
   console.log(`🔧 测试场景: 固定QPS测试 (${targetQps} QPS，持续5分钟)`);
   console.log(`⚡ 目标QPS: ${targetQps} (可通过 TARGET_QPS 环境变量配置)`);
   console.log(`🔄 预估总请求数: ${targetQps * 300} 个 (${targetQps} QPS × 300秒)`);
-  console.log('🔐 认证方式: 动态获取Bearer Token (可通过 BEARER_TOKEN 环境变量覆盖)');
+  console.log('🔐 认证方式: 动态获取Bearer Token (password模式)');
+  console.log('   - 可通过 BEARER_TOKEN 环境变量直接指定token');
+  console.log('   - 可通过 AUTH_USERNAME 和 AUTH_PASSWORD 环境变量指定认证凭据');
   console.log(`💡 使用示例: k6 run -e TARGET_QPS=${targetQps} ${testName.toLowerCase().replace(/\//g, '-')}-qps-test.js`);
   
   if (additionalInfo) {

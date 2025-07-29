@@ -102,15 +102,20 @@ export default function () {
     }
   );
 
-  // 简化会话创建验证 - 只检查HTTP状态码200
-  const isSessionCreated = createSessionResponse.status === 200;
-
-  // 功能验证 - 只检查状态码
-  check(createSessionResponse, {
-    'Session-状态码200': (r) => r.status === 200,
+  // 会话创建业务成功判断 - HTTP状态码200 + 业务code为20000
+  const isSessionCreated = check(createSessionResponse, {
+    'HTTP状态码200': (r) => r.status === 200,
+    '业务代码20000': (r) => {
+      try {
+        const data = JSON.parse(r.body);
+        return data.code === "20000";
+      } catch {
+        return false;
+      }
+    }
   });
 
-  // 记录会话创建指标
+  // 记录会话创建指标 - 只有HTTP200且业务code为20000才算成功
   sessionCreationRate.add(isSessionCreated);
 
   // 如果会话创建失败，跳过后续步骤
@@ -118,6 +123,18 @@ export default function () {
     return;
   }
 
+  // 解析会话ID（业务成功时才解析）
+  let sessionData = null;
+  try {
+    const responseData = JSON.parse(createSessionResponse.body);
+    if (responseData && responseData.code === '20000' && responseData.data) {
+      sessionData = responseData.data;
+    } else {
+      return;
+    }
+  } catch (error) {
+    return;
+  }
 
 
   // 步骤2：发送聊天消息
@@ -159,16 +176,26 @@ export default function () {
 
 
 
-  // 验证聊天响应 - 只检查HTTP状态码200
-  const isChatSuccess = chatResponse.status === 200;
-  
-  check(chatResponse, {
-    '聊天-状态码200': (r) => r.status === 200,
+  // 验证聊天响应 - HTTP状态码200 + 业务code判断（聊天响应可能是流式，需兼容处理）
+  const isChatSuccess = check(chatResponse, {
+    'HTTP状态码200': (r) => r.status === 200,
+    '业务成功判断': (r) => {
+      if (r.status !== 200) return false;
+      
+      // 聊天API可能返回SSE流式响应，先尝试解析JSON
+      try {
+        const data = JSON.parse(r.body);
+        return data.code === "20000";
+      } catch {
+        // 如果不是JSON格式（可能是SSE流），HTTP 200即视为成功
+        return r.status === 200;
+      }
+    }
   });
 
-  // 记录自定义指标 - 只有200状态码才计入成功
+  // 记录自定义指标 - 只有业务成功才计入成功
   chatResponseRate.add(isChatSuccess);
-  if (chatResponse.status === 200) {
+  if (isChatSuccess) {
     chatResponseDuration.add(chatResponse.timings.duration);
   }
   

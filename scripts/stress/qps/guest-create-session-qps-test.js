@@ -82,15 +82,20 @@ export default function () {
     { headers }
   );
 
-  // 简化响应验证 - 只检查HTTP状态码200
-  const isSuccess = createSessionResponse.status === 200;
-  
-  // 功能验证 - 只检查状态码
-  check(createSessionResponse, {
-    'API-状态码200': (r) => r.status === 200,
+  // 业务成功判断 - HTTP状态码200 + 业务code为20000
+  const isSuccess = check(createSessionResponse, {
+    'HTTP状态码200': (r) => r.status === 200,
+    '业务代码20000': (r) => {
+      try {
+        const data = JSON.parse(r.body);
+        return data.code === "20000";
+      } catch {
+        return false;
+      }
+    }
   });
-
-  // 记录自定义指标 - 只有200状态码才计入成功
+  
+  // 记录API调用指标 - 只有HTTP200且业务code为20000才算成功
   apiCallSuccessRate.add(isSuccess);
   if (createSessionResponse.status === 200) {
     apiCallDuration.add(createSessionResponse.timings.duration);

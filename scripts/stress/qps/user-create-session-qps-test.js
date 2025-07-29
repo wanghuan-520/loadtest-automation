@@ -86,12 +86,20 @@ export default function (data) {
   
   const createSessionResponse = http.post(createSessionUrl, createSessionPayload, createSessionParams);
 
-  // 检查会话创建是否成功 - 只检查HTTP状态码200
+  // 检查会话创建是否成功 - HTTP状态码200 + 业务code为20000
   const isSessionCreated = check(createSessionResponse, {
-    'session creation status is 200': (r) => r.status === 200,
+    'HTTP状态码200': (r) => r.status === 200,
+    '业务代码20000': (r) => {
+      try {
+        const data = JSON.parse(r.body);
+        return data.code === "20000";
+      } catch {
+        return false;
+      }
+    }
   });
   
-  // 记录会话创建指标
+  // 记录会话创建指标 - 只有HTTP200且业务code为20000才算成功
   sessionCreationRate.add(isSessionCreated);
 
   // 如果会话创建失败，记录错误但继续测试其他指标
@@ -99,7 +107,7 @@ export default function (data) {
     return;
   }
   
-  // 从create-session响应中解析sessionId（可选，用于验证响应格式）
+  // 从create-session响应中解析sessionId（业务成功时才解析）
   let sessionId = null;
   try {
     const responseData = JSON.parse(createSessionResponse.body);

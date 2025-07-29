@@ -91,16 +91,24 @@ export default function (data) {
   
   const createSessionResponse = http.post(createSessionUrl, createSessionPayload, createSessionParams);
 
-  // 检查会话创建是否成功 - 只检查HTTP状态码200
+  // 检查会话创建是否成功 - HTTP状态码200 + 业务code为20000
   const isSessionCreated = check(createSessionResponse, {
-    'session creation status is 200': (r) => r.status === 200,
+    'HTTP状态码200': (r) => r.status === 200,
+    '业务代码20000': (r) => {
+      try {
+        const data = JSON.parse(r.body);
+        return data.code === "20000";
+      } catch {
+        return false;
+      }
+    }
   });
   
-  // 记录会话创建指标
+  // 记录会话创建指标 - 只有HTTP200且业务code为20000才算成功
   sessionCreationRate.add(isSessionCreated);
   
-  // 记录create-session响应时间
-  if (createSessionResponse.status === 200) {
+  // 记录create-session响应时间 - 只有业务成功时才记录
+  if (isSessionCreated) {
     createResponseDuration.add(createSessionResponse.timings.duration);
   }
 
@@ -109,7 +117,7 @@ export default function (data) {
     return;
   }
   
-  // 从create-session响应中解析sessionId
+  // 从create-session响应中解析sessionId（业务成功时才解析）
   let sessionId = null;
   try {
     const responseData = JSON.parse(createSessionResponse.body);
@@ -158,16 +166,26 @@ export default function (data) {
   
   const chatResponse = http.post(`${data.baseUrl}/godgpt/chat`, JSON.stringify(chatPayload), chatParams);
   
-  // 验证聊天响应 - 只检查HTTP状态码200
-  const isChatSuccess = chatResponse.status === 200;
-  
-  check(chatResponse, {
-    'chat response status is 200': (r) => r.status === 200,
+  // 验证聊天响应 - HTTP状态码200 + 业务code判断（聊天响应可能是流式，需兼容处理）
+  const isChatSuccess = check(chatResponse, {
+    'HTTP状态码200': (r) => r.status === 200,
+    '业务成功判断': (r) => {
+      if (r.status !== 200) return false;
+      
+      // 聊天API可能返回SSE流式响应，先尝试解析JSON
+      try {
+        const data = JSON.parse(r.body);
+        return data.code === "20000";
+      } catch {
+        // 如果不是JSON格式（可能是SSE流），HTTP 200即视为成功
+        return r.status === 200;
+      }
+    }
   });
 
-  // 记录自定义指标 - 只有200状态码才计入成功
+  // 记录自定义指标 - 只有业务成功才计入成功
   chatResponseRate.add(isChatSuccess);
-  if (chatResponse.status === 200) {
+  if (isChatSuccess) {
     chatResponseDuration.add(chatResponse.timings.duration);
   }
   
