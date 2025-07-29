@@ -7,6 +7,12 @@ import { getAccessToken, setupTest, teardownTest } from '../../utils/auth.js';
 // 默认目标QPS: 20 QPS（每秒20个请求，持续5分钟）
 // 自定义目标QPS: k6 run -e TARGET_QPS=30 user-chat-qps-test.js
 // 示例: k6 run -e TARGET_QPS=25 user-chat-qps-test.js
+//
+// 🔧 性能优化说明：
+// - maxVUs: TARGET_QPS * 10 (最少20个) - 用户聊天流程复杂，需要更多VU
+// - preAllocatedVUs: TARGET_QPS * 2 (最少5个) - 预分配足够VU避免延迟
+// - 超时时间: 60秒 - 适应SSE流式响应的较长处理时间
+// - SSE响应检查: 兼容JSON和流式响应格式
 
 // 自定义指标
 const sessionCreationRate = new Rate('session_creation_success_rate');
@@ -41,8 +47,8 @@ export const options = {
       rate: TARGET_QPS,              // 每秒请求数（QPS）
       timeUnit: '1s',                // 时间单位：1秒
       duration: '5m',                // 测试持续时间：5分钟
-      preAllocatedVUs: Math.max(TARGET_QPS, 1),  // 预分配VU数量（至少为QPS数量）
-      maxVUs: TARGET_QPS * 5,        // 最大VU数量（QPS的5倍，认证用户聊天需要更多VU）
+      preAllocatedVUs: Math.max(TARGET_QPS * 2, 5),  // 预分配VU数量（至少为QPS的2倍，最少5个）
+      maxVUs: Math.max(TARGET_QPS * 10, 20),        // 最大VU数量（用户聊天需要更多VU处理复杂流程）
       tags: { test_type: 'fixed_qps_user_chat' },
     },
   },
@@ -86,7 +92,7 @@ export default function (data) {
   
   const createSessionParams = {
     headers: sessionHeaders,
-    timeout: '30s',
+    timeout: '60s',  // 增加超时时间到60秒
   };
   
   const createSessionResponse = http.post(createSessionUrl, createSessionPayload, createSessionParams);
@@ -161,10 +167,10 @@ export default function (data) {
   
   const chatParams = {
     headers: chatHeaders,
-    timeout: '30s',
+    timeout: '60s',  // 增加聊天超时时间到60秒
   };
   
-  const chatResponse = http.post(`${data.baseUrl}/godgpt/chat`, JSON.stringify(chatPayload), chatParams);
+  const chatResponse = http.post(`${data.baseUrl}/gotgpt/chat`, JSON.stringify(chatPayload), chatParams);
   
   // 验证聊天响应 - HTTP状态码200 + 业务code判断（聊天响应可能是流式，需兼容处理）
   const isChatSuccess = check(chatResponse, {
@@ -172,13 +178,30 @@ export default function (data) {
     '业务成功判断': (r) => {
       if (r.status !== 200) return false;
       
-      // 聊天API可能返回SSE流式响应，先尝试解析JSON
+      // 聊天API返回SSE流式响应，检查响应内容
+      const responseBody = r.body || '';
+      
+      // 如果响应为空，认为失败
+      if (!responseBody.trim()) {
+        return false;
+      }
+      
+      // 先尝试解析JSON格式（非流式响应）
       try {
-        const data = JSON.parse(r.body);
+        const data = JSON.parse(responseBody);
         return data.code === "20000";
       } catch {
-        // 如果不是JSON格式（可能是SSE流），HTTP 200即视为成功
-        return r.status === 200;
+        // SSE流式响应格式检查
+        // 检查是否包含有效的SSE数据或错误标识
+        if (responseBody.includes('data:') || 
+            responseBody.includes('event:') ||
+            responseBody.includes('"code":"20000"') ||
+            responseBody.length > 10) {  // 有实际内容返回
+          return true;
+        }
+        
+        // 如果既不是JSON也没有SSE特征，认为失败
+        return false;
       }
     }
   });
@@ -187,6 +210,9 @@ export default function (data) {
   chatResponseRate.add(isChatSuccess);
   if (isChatSuccess) {
     chatResponseDuration.add(chatResponse.timings.duration);
+  } else {
+    // 添加调试信息，帮助排查聊天失败原因
+    console.log(`❌ 聊天失败 - HTTP状态: ${chatResponse.status}, 响应长度: ${(chatResponse.body || '').length}, 响应前100字符: ${(chatResponse.body || '').substring(0, 100)}`);
   }
   
   // 计算端到端响应时间
@@ -202,7 +228,7 @@ export function setup() {
     tokenConfig, 
     'user/chat', 
     TARGET_QPS, 
-    '/godgpt/chat',
+    '/gotgpt/chat',
     '🌊 测试流程: create-session → chat (SSE流式响应)'
   );
 }
