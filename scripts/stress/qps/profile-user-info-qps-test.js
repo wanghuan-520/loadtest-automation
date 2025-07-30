@@ -110,20 +110,10 @@ export default function (data) {
 
 // 测试设置阶段 - 使用通用的auth setup函数
 export function setup() {
-  console.log('🎯 开始 profile/user-info 固定QPS压力测试...');
-  console.log(`📡 测试目标: ${config.baseUrl}/profile/user-info`);
-  console.log(`🔧 测试场景: 固定QPS测试 (${TARGET_QPS} QPS，持续5分钟)`);
-  console.log(`⚡ 目标QPS: ${TARGET_QPS} (可通过 TARGET_QPS 环境变量配置)`);
-  console.log(`🔄 预估总请求数: ${TARGET_QPS * 300} 个 (${TARGET_QPS} QPS × 300秒)`);
-  console.log('👤 测试内容: 获取用户个人资料信息');
-  console.log('⏱️  预计测试时间: 5分钟');
-  return setupTest(config, tokenConfig);
+  return setupTest(config, tokenConfig, 'profile/user-info', TARGET_QPS, '/profile/user-info', '👤 测试内容: 获取用户个人资料信息');
 }
 
 // 测试清理阶段 - 使用通用的teardown函数
 export function teardown(data) {
-  console.log('✅ profile/user-info 固定QPS压力测试完成');
-  console.log('🔍 关键指标：用户信息获取成功率、响应时间、QPS稳定性');
-  console.log('📈 请分析QPS是否稳定、响应时间分布和系统资源使用情况');
-  teardownTest(data);
+  teardownTest('profile/user-info', '用户信息获取成功率、响应时间、QPS稳定性');
 }

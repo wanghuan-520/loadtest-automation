@@ -94,7 +94,7 @@ export default function (data) {
     '响应包含用户ID': (r) => {
       try {
         const data = JSON.parse(r.body);
-        return data.data && data.data.userId !== undefined;
+        return data.data && typeof data.data === 'string' && data.data.length > 0;
       } catch {
         return false;
       }
@@ -110,20 +110,10 @@ export default function (data) {
 
 // 测试设置阶段 - 使用通用的auth setup函数
 export function setup() {
-  console.log('🎯 开始 query/user-id 固定QPS压力测试...');
-  console.log(`📡 测试目标: ${config.baseUrl}/query/user-id`);
-  console.log(`🔧 测试场景: 固定QPS测试 (${TARGET_QPS} QPS，持续5分钟)`);
-  console.log(`⚡ 目标QPS: ${TARGET_QPS} (可通过 TARGET_QPS 环境变量配置)`);
-  console.log(`🔄 预估总请求数: ${TARGET_QPS * 300} 个 (${TARGET_QPS} QPS × 300秒)`);
-  console.log('🆔 测试内容: 查询用户ID');
-  console.log('⏱️  预计测试时间: 5分钟');
-  return setupTest(config, tokenConfig);
+  return setupTest(config, tokenConfig, 'query/user-id', TARGET_QPS, '/query/user-id', '🆔 测试内容: 查询用户ID');
 }
 
 // 测试清理阶段 - 使用通用的teardown函数
 export function teardown(data) {
-  console.log('✅ query/user-id 固定QPS压力测试完成');
-  console.log('🔍 关键指标：用户ID查询成功率、响应时间、QPS稳定性');
-  console.log('📈 请分析QPS是否稳定、响应时间分布和系统资源使用情况');
-  teardownTest(data);
+  teardownTest('query/user-id', '用户ID查询成功率、响应时间、QPS稳定性');
 }

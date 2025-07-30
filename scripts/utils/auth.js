@@ -75,7 +75,7 @@ export function setupTest(config, tokenConfig, testName, targetQps, apiEndpoint,
   console.log('🔐 认证方式: 动态获取Bearer Token (password模式)');
   console.log('   - 可通过 BEARER_TOKEN 环境变量直接指定token');
   console.log('   - 可通过 AUTH_USERNAME 和 AUTH_PASSWORD 环境变量指定认证凭据');
-  console.log(`💡 使用示例: k6 run -e TARGET_QPS=${targetQps} ${testName.toLowerCase().replace(/\//g, '-')}-qps-test.js`);
+  console.log(`💡 使用示例: k6 run -e TARGET_QPS=${targetQps} ${testName ? testName.toLowerCase().replace(/\//g, '-') : 'test'}-qps-test.js`);
   
   if (additionalInfo) {
     console.log(additionalInfo);

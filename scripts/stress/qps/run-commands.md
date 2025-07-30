@@ -206,3 +206,11 @@ k6 run session-rename-qps-test.js
 k6 run -e TARGET_QPS=1 scripts/stress/qps/user-session-list-qps-test.js
 k6 run -e TARGET_QPS=50 scripts/stress/qps/user-session-list-qps-test.js
 k6 run -e TARGET_QPS=100 scripts/stress/qps/user-session-list-qps-test.js
+
+
+k6 run -e TARGET_QPS=1 scripts/stress/qps/godgpt-account-qps-test.js
+k6 run -e TARGET_QPS=50 scripts/stress/qps/godgpt-account-qps-test.js
+k6 run -e TARGET_QPS=100 scripts/stress/qps/godgpt-account-qps-test.js
+
+
+k6 run -e TARGET_QPS=1 scripts/stress/qps/profile-user-info-qps-test.js
