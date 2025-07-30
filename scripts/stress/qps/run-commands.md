@@ -1,202 +1,165 @@
-# QPS 压力测试运行命令指南
+# QPS测试运行命令
 
-## 📋 概述
-本文档包含所有QPS（固定每秒请求数）压力测试脚本的运行命令示例。
+## 核心功能（P0优先级）
 
----
-
-## 🚀 Guest 测试脚本
-
-### 1. Guest 会话创建测试 (guest-create-session-qps-test.js)
-
-#### 基础命令（默认50 QPS，5分钟）
+### 访客聊天功能
 ```bash
-k6 run scripts/stress/qps/guest-create-session-qps-test.js
+# 访客创建会话测试（默认50 QPS）
+k6 run guest-create-session-qps-test.js
+
+# 访客创建会话测试（自定义QPS）
+k6 run -e TARGET_QPS=60 guest-create-session-qps-test.js
+
+# 访客聊天测试（默认30 QPS）
+k6 run guest-chat-qps-test.js
+
+# 访客聊天测试（自定义QPS）
+k6 run -e TARGET_QPS=40 guest-chat-qps-test.js
 ```
 
-#### 自定义QPS
+### 登录用户聊天功能
 ```bash
-# 低负载测试
-k6 run -e TARGET_QPS=1 scripts/stress/qps/guest-create-session-qps-test.js
-k6 run -e TARGET_QPS=10 scripts/stress/qps/guest-create-session-qps-test.js
+# 用户创建会话测试（默认40 QPS）
+k6 run user-create-session-qps-test.js
 
-# 中等负载测试
-k6 run -e TARGET_QPS=30 scripts/stress/qps/guest-create-session-qps-test.js
-k6 run -e TARGET_QPS=50 scripts/stress/qps/guest-create-session-qps-test.js
+# 用户创建会话测试（自定义QPS）
+k6 run -e TARGET_QPS=50 user-create-session-qps-test.js
 
-# 高负载测试
-k6 run -e TARGET_QPS=100 scripts/stress/qps/guest-create-session-qps-test.js
-k6 run -e TARGET_QPS=200 scripts/stress/qps/guest-create-session-qps-test.js
+# 用户聊天测试（默认20 QPS）
+k6 run user-chat-qps-test.js
+
+# 用户聊天测试（自定义QPS）
+k6 run -e TARGET_QPS=30 user-chat-qps-test.js
 ```
 
-#### 自定义时长
+## 重要功能（P1优先级）
+
+### 会话管理功能
 ```bash
-k6 run -e TARGET_QPS=50 --duration=1m scripts/stress/qps/guest-create-session-qps-test.js
-k6 run -e TARGET_QPS=50 --duration=10m scripts/stress/qps/guest-create-session-qps-test.js
+# 获取会话信息测试（默认30 QPS）
+k6 run user-session-info-qps-test.js
+
+# 获取会话信息测试（自定义QPS）
+k6 run -e TARGET_QPS=40 user-session-info-qps-test.js
+
+# 会话列表测试（默认35 QPS）
+k6 run user-session-list-qps-test.js
+
+# 会话列表测试（自定义QPS）
+k6 run -e TARGET_QPS=45 user-session-list-qps-test.js
 ```
 
----
-
-### 2. Guest 聊天测试 (guest-chat-qps-test.js)
-
-#### 基础命令（默认30 QPS，5分钟）
+### 用户信息管理功能
 ```bash
-k6 run scripts/stress/qps/guest-chat-qps-test.js
+# 获取用户账户信息测试（默认30 QPS）
+k6 run user-account-qps-test.js
+
+# 获取用户账户信息测试（自定义QPS）
+k6 run -e TARGET_QPS=40 user-account-qps-test.js
+
+# 获取用户档案信息测试（默认25 QPS）
+k6 run user-profile-qps-test.js
+
+# 获取用户档案信息测试（自定义QPS）
+k6 run -e TARGET_QPS=35 user-profile-qps-test.js
+
+# 获取用户ID测试（默认40 QPS）
+k6 run user-id-qps-test.js
+
+# 获取用户ID测试（自定义QPS）
+k6 run -e TARGET_QPS=50 user-id-qps-test.js
 ```
 
-#### 自定义QPS
+### 支付系统功能
 ```bash
-# 调试模式
-k6 run -e TARGET_QPS=1 --duration=30s scripts/stress/qps/guest-chat-qps-test.js
-k6 run -e TARGET_QPS=2 --duration=1m scripts/stress/qps/guest-chat-qps-test.js
+# 获取支付记录测试（默认25 QPS）
+k6 run payment-list-qps-test.js
 
-# 常规测试
-k6 run -e TARGET_QPS=1 scripts/stress/qps/guest-chat-qps-test.js
-k6 run -e TARGET_QPS=10 scripts/stress/qps/guest-chat-qps-test.js
-k6 run -e TARGET_QPS=20 scripts/stress/qps/guest-chat-qps-test.js
-k6 run -e TARGET_QPS=30 scripts/stress/qps/guest-chat-qps-test.js
+# 获取支付记录测试（自定义QPS）
+k6 run -e TARGET_QPS=35 payment-list-qps-test.js
 
-# 高负载测试
-k6 run -e TARGET_QPS=50 scripts/stress/qps/guest-chat-qps-test.js
-k6 run -e TARGET_QPS=100 scripts/stress/qps/guest-chat-qps-test.js
+# 检查Apple订阅测试（默认30 QPS）
+k6 run payment-apple-subscription-qps-test.js
+
+# 检查Apple订阅测试（自定义QPS）
+k6 run -e TARGET_QPS=40 payment-apple-subscription-qps-test.js
+
+# 获取产品列表测试（默认35 QPS）
+k6 run payment-products-qps-test.js
+
+# 获取产品列表测试（自定义QPS）
+k6 run -e TARGET_QPS=45 payment-products-qps-test.js
 ```
 
----
-
-## 👤 User 测试脚本
-
-### 3. User 会话创建测试 (user-create-session-qps-test.js)
-
-#### 基础命令（默认40 QPS，5分钟）
+### 邀请系统功能
 ```bash
-k6 run scripts/stress/qps/user-create-session-qps-test.js
+# 兑换邀请码测试（默认20 QPS）
+k6 run invitation-redeem-qps-test.js
+
+# 兑换邀请码测试（自定义QPS）
+k6 run -e TARGET_QPS=30 invitation-redeem-qps-test.js
 ```
 
-#### 自定义QPS
+## 辅助功能（P2优先级）
+
+### 会话管理功能
 ```bash
-# 低负载测试
-k6 run -e TARGET_QPS=1 scripts/stress/qps/user-create-session-qps-test.js
-k6 run -e TARGET_QPS=5 scripts/stress/qps/user-create-session-qps-test.js
-k6 run -e TARGET_QPS=10 scripts/stress/qps/user-create-session-qps-test.js
-k6 run -e TARGET_QPS=20 scripts/stress/qps/user-create-session-qps-test.js
+# 删除会话测试（默认15 QPS）
+k6 run session-delete-qps-test.js
 
-# 中等负载测试
-k6 run -e TARGET_QPS=40 scripts/stress/qps/user-create-session-qps-test.js
-k6 run -e TARGET_QPS=60 scripts/stress/qps/user-create-session-qps-test.js
+# 删除会话测试（自定义QPS）
+k6 run -e TARGET_QPS=25 session-delete-qps-test.js
 
-# 高负载测试
-k6 run -e TARGET_QPS=100 scripts/stress/qps/user-create-session-qps-test.js
-k6 run -e TARGET_QPS=150 scripts/stress/qps/user-create-session-qps-test.js
+# 会话重命名测试（默认15 QPS）
+k6 run session-rename-qps-test.js
+
+# 会话重命名测试（自定义QPS）
+k6 run -e TARGET_QPS=25 session-rename-qps-test.js
 ```
 
----
+## 批量运行命令
 
-### 4. User 聊天测试 (user-chat-qps-test.js)
-
-#### 基础命令（默认20 QPS，5分钟）
+### 运行所有P0核心功能测试
 ```bash
-k6 run scripts/stress/qps/user-chat-qps-test.js
+# 依次运行所有P0优先级测试
+k6 run guest-create-session-qps-test.js && \
+k6 run guest-chat-qps-test.js && \
+k6 run user-create-session-qps-test.js && \
+k6 run user-chat-qps-test.js
 ```
 
-#### 自定义QPS
+### 运行所有P1重要功能测试
 ```bash
-# 低负载测试
-k6 run -e TARGET_QPS=1 scripts/stress/qps/user-chat-qps-test.js
-k6 run -e TARGET_QPS=10 scripts/stress/qps/user-chat-qps-test.js
-
-# 中等负载测试
-k6 run -e TARGET_QPS=20 scripts/stress/qps/user-chat-qps-test.js
-k6 run -e TARGET_QPS=30 scripts/stress/qps/user-chat-qps-test.js
-
-# 高负载测试
-k6 run -e TARGET_QPS=50 scripts/stress/qps/user-chat-qps-test.js
-k6 run -e TARGET_QPS=80 scripts/stress/qps/user-chat-qps-test.js
+# 依次运行所有P1优先级测试
+k6 run user-session-info-qps-test.js && \
+k6 run user-session-list-qps-test.js && \
+k6 run user-account-qps-test.js && \
+k6 run user-profile-qps-test.js && \
+k6 run user-id-qps-test.js && \
+k6 run payment-list-qps-test.js && \
+k6 run payment-apple-subscription-qps-test.js && \
+k6 run payment-products-qps-test.js && \
+k6 run invitation-redeem-qps-test.js
 ```
 
----
-
-## 📊 结果输出和日志
-
-### 保存结果到文件
+### 运行所有P2辅助功能测试
 ```bash
-# 保存完整输出
-k6 run -e TARGET_QPS=30 scripts/stress/qps/guest-chat-qps-test.js > guest-chat-30qps-results.txt
-
-# 实时查看并保存
-k6 run -e TARGET_QPS=50 scripts/stress/qps/guest-create-session-qps-test.js | tee guest-session-50qps.log
-
-# 只保存错误信息
-k6 run -e TARGET_QPS=100 scripts/stress/qps/user-chat-qps-test.js 2> user-chat-errors.log
+# 依次运行所有P2优先级测试
+k6 run session-delete-qps-test.js && \
+k6 run session-rename-qps-test.js
 ```
 
-### JSON格式输出
-```bash
-k6 run -e TARGET_QPS=30 --out json=results.json scripts/stress/qps/guest-chat-qps-test.js
-```
+## 注意事项
 
----
+1. **QPS设置**：根据服务器性能调整TARGET_QPS参数
+2. **测试时长**：所有测试默认运行5分钟
+3. **认证配置**：确保tokens.json文件配置正确
+4. **环境切换**：通过修改config/env.dev.json切换测试环境
+5. **并发控制**：避免同时运行过多高QPS测试导致服务器过载
 
-## 🛠️ 常用组合命令
+## 推荐测试顺序
 
-### 快速验证测试
-```bash
-# 1QPS低负载验证所有脚本
-k6 run -e TARGET_QPS=1 --duration=30s scripts/stress/qps/guest-create-session-qps-test.js
-k6 run -e TARGET_QPS=1 --duration=30s scripts/stress/qps/guest-chat-qps-test.js  
-k6 run -e TARGET_QPS=1 --duration=30s scripts/stress/qps/user-create-session-qps-test.js
-k6 run -e TARGET_QPS=1 --duration=30s scripts/stress/qps/user-chat-qps-test.js
-```
-
-### 性能基准测试
-```bash
-# 建议的基准测试QPS
-k6 run -e TARGET_QPS=50 scripts/stress/qps/guest-create-session-qps-test.js  # 会话创建
-k6 run -e TARGET_QPS=30 scripts/stress/qps/guest-chat-qps-test.js           # Guest聊天
-k6 run -e TARGET_QPS=40 scripts/stress/qps/user-create-session-qps-test.js  # 用户会话
-k6 run -e TARGET_QPS=20 scripts/stress/qps/user-chat-qps-test.js           # 用户聊天
-```
-
-### 压力极限测试
-```bash
-# 高负载压力测试
-k6 run -e TARGET_QPS=200 scripts/stress/qps/guest-create-session-qps-test.js
-k6 run -e TARGET_QPS=100 scripts/stress/qps/guest-chat-qps-test.js
-k6 run -e TARGET_QPS=150 scripts/stress/qps/user-create-session-qps-test.js
-k6 run -e TARGET_QPS=80 scripts/stress/qps/user-chat-qps-test.js
-```
-
----
-
-## ⚙️ 参数说明
-
-| 参数 | 说明 | 默认值 | 示例 |
-|------|------|--------|------|
-| `TARGET_QPS` | 每秒请求数 | 各脚本不同 | `-e TARGET_QPS=50` |
-| `--duration` | 测试持续时间 | 5分钟 | `--duration=10m` |
-| `--out` | 输出格式 | 控制台 | `--out json=result.json` |
-
----
-
-## 🚨 注意事项
-
-1. **Guest聊天测试**：已集成随机IP功能，自动避免每日聊天限制
-2. **VU数量**：系统自动调整，无需手动设置
-3. **超时设置**：所有请求都有30秒超时保护
-4. **SSE支持**：聊天测试支持Server-Sent Events流式响应
-5. **认证令牌**：User测试使用Bearer Token认证
-
----
-
-## 📈 监控指标
-
-重点关注以下指标：
-- `http_req_failed`: HTTP请求失败率
-- `session_creation_success_rate`: 会话创建成功率  
-- `chat_response_success_rate`: 聊天响应成功率
-- `http_req_duration`: 请求响应时间
-- `iterations`: 实际QPS (iters/s)
-
----
-
-*更新时间: 2024年7月28日*
-*版本: v1.0* 
+1. 先运行P0核心功能测试，验证基础功能性能
+2. 再运行P1重要功能测试，评估业务功能性能
+3. 最后运行P2辅助功能测试，完善性能画像
+4. 根据结果调整QPS参数，找到性能瓶颈点 
