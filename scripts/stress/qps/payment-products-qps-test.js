@@ -9,12 +9,11 @@ import { getAccessToken, setupTest, teardownTest } from '../../utils/auth.js';
 // 示例: k6 run -e TARGET_QPS=45 payment-products-qps-test.js
 
 // 自定义指标
-const paymentProductsSuccessRate = new Rate('payment_products_success_rate');
+const paymentProductsRate = new Rate('payment_products_success_rate');
 const paymentProductsDuration = new Trend('payment_products_duration');
 
-// 从配置文件加载环境配置和测试数据
+// 从配置文件加载环境配置
 const config = JSON.parse(open('../../../config/env.dev.json'));
-const testData = JSON.parse(open('../../../config/test-data.json'));
 
 // 尝试从tokens.json文件加载token配置
 let tokenConfig = {};
@@ -53,10 +52,10 @@ export const options = {
 export default function (data) {
   const startTime = Date.now();
   
-  // 构造获取产品列表请求
+  // 构造支付产品列表获取请求
   const paymentProductsUrl = `${data.baseUrl}/godgpt/payment/products`;
   
-  // 构造请求头 - 匹配curl命令，包含authorization token
+  // 构造请求头 - 参照API文档格式，包含authorization token
   const paymentProductsHeaders = {
     'accept': '*/*',
     'accept-language': 'zh-CN,zh;q=0.9',
@@ -81,7 +80,7 @@ export default function (data) {
   
   const paymentProductsResponse = http.get(paymentProductsUrl, paymentProductsParams);
 
-  // 检查产品列表获取是否成功 - HTTP状态码200 + 业务code为20000
+  // 检查支付产品列表获取是否成功 - HTTP状态码200 + 业务code为20000
   const isPaymentProductsSuccess = check(paymentProductsResponse, {
     'HTTP状态码200': (r) => r.status === 200,
     '业务代码20000': (r) => {
@@ -91,30 +90,40 @@ export default function (data) {
       } catch {
         return false;
       }
+    },
+    '响应包含产品列表': (r) => {
+      try {
+        const data = JSON.parse(r.body);
+        return data.data && Array.isArray(data.data.products);
+      } catch {
+        return false;
+      }
     }
   });
-  
-  // 记录产品列表获取指标 - 只有HTTP200且业务code为20000才算成功
-  paymentProductsSuccessRate.add(isPaymentProductsSuccess);
 
-  // 记录响应时间
-  if (paymentProductsResponse.status === 200) {
+  // 记录自定义指标 - 只有业务成功才计入成功
+  paymentProductsRate.add(isPaymentProductsSuccess);
+  if (isPaymentProductsSuccess) {
     paymentProductsDuration.add(paymentProductsResponse.timings.duration);
   }
 }
 
-// 测试设置阶段
+// 测试设置阶段 - 使用通用的auth setup函数
 export function setup() {
-  return setupTest(
-    config, 
-    tokenConfig, 
-    'payment/products', 
-    TARGET_QPS, 
-    '/godgpt/payment/products'
-  );
+  console.log('🎯 开始 godgpt/payment/products 固定QPS压力测试...');
+  console.log(`📡 测试目标: ${config.baseUrl}/godgpt/payment/products`);
+  console.log(`🔧 测试场景: 固定QPS测试 (${TARGET_QPS} QPS，持续5分钟)`);
+  console.log(`⚡ 目标QPS: ${TARGET_QPS} (可通过 TARGET_QPS 环境变量配置)`);
+  console.log(`🔄 预估总请求数: ${TARGET_QPS * 300} 个 (${TARGET_QPS} QPS × 300秒)`);
+  console.log('🛍️  测试内容: 获取支付产品列表');
+  console.log('⏱️  预计测试时间: 5分钟');
+  return setupTest(config, tokenConfig);
 }
 
-// 测试清理阶段
+// 测试清理阶段 - 使用通用的teardown函数
 export function teardown(data) {
-  teardownTest('payment/products', '产品列表获取成功率、响应时间、QPS稳定性');
-} 
+  console.log('✅ godgpt/payment/products 固定QPS压力测试完成');
+  console.log('🔍 关键指标：支付产品列表获取成功率、响应时间、QPS稳定性');
+  console.log('📈 请分析QPS是否稳定、响应时间分布和系统资源使用情况');
+  teardownTest(data);
+}

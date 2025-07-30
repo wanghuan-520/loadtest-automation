@@ -30,6 +30,12 @@ k6 run user-chat-qps-test.js
 
 # 用户聊天测试（自定义QPS）
 k6 run -e TARGET_QPS=30 user-chat-qps-test.js
+
+# 语音聊天测试（默认20 QPS）
+k6 run godgpt-voice-chat-qps-test.js
+
+# 语音聊天测试（自定义QPS）
+k6 run -e TARGET_QPS=30 godgpt-voice-chat-qps-test.js
 ```
 
 ## 重要功能（P1优先级）
@@ -57,17 +63,35 @@ k6 run user-account-qps-test.js
 # 获取用户账户信息测试（自定义QPS）
 k6 run -e TARGET_QPS=40 user-account-qps-test.js
 
+# 获取GodGPT账户信息测试（默认30 QPS）
+k6 run godgpt-account-qps-test.js
+
+# 获取GodGPT账户信息测试（自定义QPS）
+k6 run -e TARGET_QPS=40 godgpt-account-qps-test.js
+
 # 获取用户档案信息测试（默认25 QPS）
 k6 run user-profile-qps-test.js
 
 # 获取用户档案信息测试（自定义QPS）
 k6 run -e TARGET_QPS=35 user-profile-qps-test.js
 
+# 获取Profile用户信息测试（默认35 QPS）
+k6 run profile-user-info-qps-test.js
+
+# 获取Profile用户信息测试（自定义QPS）
+k6 run -e TARGET_QPS=45 profile-user-info-qps-test.js
+
 # 获取用户ID测试（默认40 QPS）
 k6 run user-id-qps-test.js
 
 # 获取用户ID测试（自定义QPS）
 k6 run -e TARGET_QPS=50 user-id-qps-test.js
+
+# 查询用户ID测试（默认40 QPS）
+k6 run query-user-id-qps-test.js
+
+# 查询用户ID测试（自定义QPS）
+k6 run -e TARGET_QPS=50 query-user-id-qps-test.js
 ```
 
 ### 支付系统功能
@@ -89,6 +113,15 @@ k6 run payment-products-qps-test.js
 
 # 获取产品列表测试（自定义QPS）
 k6 run -e TARGET_QPS=45 payment-products-qps-test.js
+```
+
+### 认证系统功能
+```bash
+# Token获取测试（默认40 QPS）
+k6 run connect-token-qps-test.js
+
+# Token获取测试（自定义QPS）
+k6 run -e TARGET_QPS=60 connect-token-qps-test.js
 ```
 
 ### 邀请系统功能
@@ -125,7 +158,8 @@ k6 run -e TARGET_QPS=25 session-rename-qps-test.js
 k6 run guest-create-session-qps-test.js && \
 k6 run guest-chat-qps-test.js && \
 k6 run user-create-session-qps-test.js && \
-k6 run user-chat-qps-test.js
+k6 run user-chat-qps-test.js && \
+k6 run godgpt-voice-chat-qps-test.js
 ```
 
 ### 运行所有P1重要功能测试
@@ -134,8 +168,12 @@ k6 run user-chat-qps-test.js
 k6 run user-session-info-qps-test.js && \
 k6 run user-session-list-qps-test.js && \
 k6 run user-account-qps-test.js && \
+k6 run godgpt-account-qps-test.js && \
 k6 run user-profile-qps-test.js && \
+k6 run profile-user-info-qps-test.js && \
 k6 run user-id-qps-test.js && \
+k6 run query-user-id-qps-test.js && \
+k6 run connect-token-qps-test.js && \
 k6 run payment-list-qps-test.js && \
 k6 run payment-apple-subscription-qps-test.js && \
 k6 run payment-products-qps-test.js && \
@@ -163,3 +201,8 @@ k6 run session-rename-qps-test.js
 2. 再运行P1重要功能测试，评估业务功能性能
 3. 最后运行P2辅助功能测试，完善性能画像
 4. 根据结果调整QPS参数，找到性能瓶颈点 
+
+
+k6 run -e TARGET_QPS=1 scripts/stress/qps/user-session-list-qps-test.js
+k6 run -e TARGET_QPS=50 scripts/stress/qps/user-session-list-qps-test.js
+k6 run -e TARGET_QPS=100 scripts/stress/qps/user-session-list-qps-test.js
