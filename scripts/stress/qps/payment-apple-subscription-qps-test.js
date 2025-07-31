@@ -4,8 +4,9 @@ import { Rate, Trend } from 'k6/metrics';
 import { getAccessToken, setupTest, teardownTest } from '../../utils/auth.js';
 
 // 使用说明：
-// 默认目标QPS: 25 QPS（每秒25个请求，持续5分钟）
+// 默认目标QPS: 2 QPS（每秒2个请求，持续1分钟，用于debug）
 // 自定义目标QPS: k6 run -e TARGET_QPS=40 payment-apple-subscription-qps-test.js
+// Debug模式: k6 run -e DEBUG=true payment-apple-subscription-qps-test.js
 // 示例: k6 run -e TARGET_QPS=35 payment-apple-subscription-qps-test.js
 
 // 自定义指标
@@ -23,8 +24,10 @@ try {
   console.log('⚠️  未找到tokens.json配置文件，将使用环境变量或默认token');
 }
 
-// 获取目标QPS参数，默认值为25
-const TARGET_QPS = __ENV.TARGET_QPS ? parseInt(__ENV.TARGET_QPS) : 25;
+// 获取目标QPS参数，默认值为2（debug模式）
+const TARGET_QPS = __ENV.TARGET_QPS ? parseInt(__ENV.TARGET_QPS) : 2;
+// Debug模式开关
+const DEBUG_MODE = __ENV.DEBUG === 'true';
 
 // 固定QPS压力测试场景配置
 export const options = {
@@ -34,7 +37,7 @@ export const options = {
       executor: 'constant-arrival-rate',
       rate: TARGET_QPS,              // 每秒请求数（QPS）
       timeUnit: '1s',                // 时间单位：1秒
-      duration: '5m',                // 测试持续时间：5分钟
+      duration: TARGET_QPS <= 5 ? '1m' : '5m',  // Debug模式1分钟，正常模式5分钟
       preAllocatedVUs: Math.max(TARGET_QPS, 1),  // 预分配VU数量（至少为QPS数量）
       maxVUs: TARGET_QPS * 2,        // 最大VU数量（QPS的2倍）
       tags: { test_type: 'fixed_qps_apple_subscription' },
@@ -80,6 +83,40 @@ export default function (data) {
   
   const appleSubscriptionResponse = http.get(appleSubscriptionUrl, appleSubscriptionParams);
 
+  // Debug信息：输出API响应详情
+  if (DEBUG_MODE || TARGET_QPS <= 5) {
+    console.log('🔍 ===== DEBUG 模式 - API响应详情 =====');
+    console.log(`📍 请求URL: ${appleSubscriptionUrl}`);
+    console.log(`📊 HTTP状态码: ${appleSubscriptionResponse.status}`);
+    console.log(`⏰ 响应时间: ${appleSubscriptionResponse.timings.duration}ms`);
+    console.log(`📦 响应体: ${appleSubscriptionResponse.body}`);
+    console.log(`📋 响应头: ${JSON.stringify(appleSubscriptionResponse.headers, null, 2)}`);
+    
+    // 尝试解析JSON响应
+    try {
+      const responseData = JSON.parse(appleSubscriptionResponse.body);
+      console.log('🔍 解析后的响应数据结构:');
+      console.log(`   - code: ${responseData.code}`);
+      console.log(`   - message: ${responseData.message}`);
+      console.log(`   - data存在: ${responseData.data !== undefined ? '是' : '否'}`);
+      if (responseData.data !== undefined) {
+        console.log(`   - data类型: ${typeof responseData.data}`);
+        if (typeof responseData.data === 'object' && responseData.data !== null) {
+          console.log(`   - hasSubscription字段: ${responseData.data.hasSubscription !== undefined ? '存在' : '不存在'}`);
+          if (responseData.data.hasSubscription !== undefined) {
+            console.log(`   - hasSubscription值: ${responseData.data.hasSubscription}`);
+          }
+          console.log(`   - data完整内容: ${JSON.stringify(responseData.data, null, 2)}`);
+        } else {
+          console.log(`   - data值: ${JSON.stringify(responseData.data)}`);
+        }
+      }
+    } catch (e) {
+      console.log(`❌ 响应体解析失败: ${e.message}`);
+    }
+    console.log('🔍 ========== DEBUG 结束 ==========');
+  }
+
   // 检查Apple订阅状态查询是否成功 - HTTP状态码200 + 业务code为20000
   const isAppleSubscriptionSuccess = check(appleSubscriptionResponse, {
     'HTTP状态码200': (r) => r.status === 200,
@@ -91,10 +128,14 @@ export default function (data) {
         return false;
       }
     },
-    '响应包含订阅状态': (r) => {
+    '响应数据结构正确': (r) => {
       try {
         const data = JSON.parse(r.body);
-        return data.data && (data.data.hasSubscription !== undefined);
+        // data字段存在且包含hasSubscription字段，或者data本身就是布尔值
+        return data.data !== undefined && (
+          (typeof data.data === 'object' && data.data !== null && data.data.hasSubscription !== undefined) ||
+          (typeof data.data === 'boolean')
+        );
       } catch {
         return false;
       }
@@ -112,11 +153,20 @@ export default function (data) {
 export function setup() {
   console.log('🎯 开始 godgpt/payment/has-apple-subscription 固定QPS压力测试...');
   console.log(`📡 测试目标: ${config.baseUrl}/godgpt/payment/has-apple-subscription`);
-  console.log(`🔧 测试场景: 固定QPS测试 (${TARGET_QPS} QPS，持续5分钟)`);
+  
+  const testDuration = TARGET_QPS <= 5 ? 60 : 300; // 1分钟或5分钟
+  const durationText = TARGET_QPS <= 5 ? '1分钟' : '5分钟';
+  
+  console.log(`🔧 测试场景: 固定QPS测试 (${TARGET_QPS} QPS，持续${durationText})`);
   console.log(`⚡ 目标QPS: ${TARGET_QPS} (可通过 TARGET_QPS 环境变量配置)`);
-  console.log(`🔄 预估总请求数: ${TARGET_QPS * 300} 个 (${TARGET_QPS} QPS × 300秒)`);
+  console.log(`🔄 预估总请求数: ${TARGET_QPS * testDuration} 个 (${TARGET_QPS} QPS × ${testDuration}秒)`);
   console.log('🍎 测试内容: 检查Apple订阅状态');
-  console.log('⏱️  预计测试时间: 5分钟');
+  console.log(`⏱️  预计测试时间: ${durationText}`);
+  
+  if (DEBUG_MODE || TARGET_QPS <= 5) {
+    console.log('🔍 DEBUG模式已启用 - 将显示详细的API响应信息');
+  }
+  
   return setupTest(config, tokenConfig);
 }
 

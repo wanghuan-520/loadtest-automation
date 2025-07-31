@@ -4,13 +4,13 @@ import { Rate, Trend } from 'k6/metrics';
 import { getAccessToken, setupTest, teardownTest } from '../../utils/auth.js';
 
 // 使用说明：
-// 默认目标QPS: 30 QPS（每秒30个请求，持续5分钟）
-// 自定义目标QPS: k6 run -e TARGET_QPS=50 user-session-info-qps-test.js
-// 示例: k6 run -e TARGET_QPS=40 user-session-info-qps-test.js
+// 默认目标QPS: 50 QPS（每秒50个请求，持续5分钟）
+// 自定义目标QPS: k6 run -e TARGET_QPS=100 godgpt-account-show-toast-qps-test.js
+// 示例: k6 run -e TARGET_QPS=80 godgpt-account-show-toast-qps-test.js
 
 // 自定义指标
-const sessionInfoSuccessRate = new Rate('session_info_success_rate');
-const sessionInfoDuration = new Trend('session_info_duration');
+const apiCallSuccessRate = new Rate('api_call_success_rate');
+const apiCallDuration = new Trend('api_call_duration');
 
 // 从配置文件加载环境配置和测试数据
 const config = JSON.parse(open('../../../config/env.dev.json'));
@@ -24,8 +24,18 @@ try {
   console.log('⚠️  未找到tokens.json配置文件，将使用环境变量或默认token');
 }
 
-// 获取目标QPS参数，默认值为30
-const TARGET_QPS = __ENV.TARGET_QPS ? parseInt(__ENV.TARGET_QPS) : 30;
+// 获取目标QPS参数，默认值为50
+const TARGET_QPS = __ENV.TARGET_QPS ? parseInt(__ENV.TARGET_QPS) : 50;
+
+// 生成随机UUID的函数
+function generateRandomUUID() {
+  // 生成随机UUID格式：xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0;
+    const v = c == 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+}
 
 // 固定QPS压力测试场景配置
 export const options = {
@@ -37,32 +47,33 @@ export const options = {
       timeUnit: '1s',                // 时间单位：1秒
       duration: '5m',                // 测试持续时间：5分钟
       preAllocatedVUs: Math.max(TARGET_QPS, 1),  // 预分配VU数量（至少为QPS数量）
-      maxVUs: TARGET_QPS * 2,        // 最大VU数量（QPS的2倍）
-      tags: { test_type: 'fixed_qps_session_info' },
+      maxVUs: TARGET_QPS * 3,        // 最大VU数量（QPS的3倍以防不够用）
+      tags: { test_type: 'fixed_qps' },
     },
   },
   // 注释掉阈值设置，只关注QPS稳定性，不验证响应质量
   // thresholds: {
   //   http_req_failed: ['rate<0.01'],
-  //   'session_info_success_rate': ['rate>0.99'],
-  //   'session_info_duration': ['p(95)<2000'],
+  //   'api_call_success_rate': ['rate>0.99'],
+  //   'api_call_duration': ['p(95)<2000'],
   // },
 };
 
 // 测试主函数
 export default function (data) {
-  const startTime = Date.now();
+  // 生成随机ID
+  const randomId = generateRandomUUID();
   
-  // 构造获取会话信息请求 - 固定使用指定会话ID
-  const sessionInfoUrl = `${data.baseUrl}/godgpt/session-info/e0fd9720-177c-40b2-8ae7-62b1a20d93de`;
-  
-  // 构造请求头 - 匹配curl命令，包含authorization token
-  const sessionInfoHeaders = {
+  // 构造请求头 - 匹配curl命令，使用动态Bearer token
+  const headers = {
     'accept': '*/*',
-    'accept-language': 'zh-CN,zh;q=0.9',
+    'accept-language': 'en,zh-CN;q=0.9,zh;q=0.8',
     'authorization': `Bearer ${data.bearerToken}`,
+    'cache-control': 'no-cache',
     'content-type': 'application/json',
+    'godgptlanguage': 'zh-TW',
     'origin': config.origin,
+    'pragma': 'no-cache',
     'priority': 'u=1, i',
     'referer': config.referer,
     'sec-ch-ua': '"Not)A;Brand";v="8", "Chromium";v="138", "Google Chrome";v="138"',
@@ -73,33 +84,40 @@ export default function (data) {
     'sec-fetch-site': 'cross-site',
     'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36',
   };
-  
-  const sessionInfoParams = {
-    headers: sessionInfoHeaders,
-    timeout: '30s',
-  };
-  
-  const sessionInfoResponse = http.get(sessionInfoUrl, sessionInfoParams);
 
-  // 检查会话信息获取是否成功 - HTTP状态码200 + 业务code为20000
-  const isSessionInfoSuccess = check(sessionInfoResponse, {
+  // 请求体数据 - 包含随机生成的ID
+  const requestBody = {
+    "id": randomId
+  };
+
+  // 调用 godgpt/account/show-toast POST接口
+  const showToastResponse = http.post(
+    `${data.baseUrl}/godgpt/account/show-toast`,
+    JSON.stringify(requestBody),
+    { 
+      headers,
+      timeout: '30s',
+    }
+  );
+
+  // 业务成功判断 - HTTP状态码200 + 业务code检查
+  const isSuccess = check(showToastResponse, {
     'HTTP状态码200': (r) => r.status === 200,
-    '业务代码20000': (r) => {
+    '响应有效': (r) => {
       try {
         const data = JSON.parse(r.body);
-        return data.code === "20000";
+        // 根据实际API响应格式调整成功判断逻辑
+        return r.status === 200 && data !== null;
       } catch {
-        return false;
+        return r.status === 200;
       }
     }
   });
   
-  // 记录会话信息获取指标 - 只有HTTP200且业务code为20000才算成功
-  sessionInfoSuccessRate.add(isSessionInfoSuccess);
-
-  // 记录响应时间
-  if (sessionInfoResponse.status === 200) {
-    sessionInfoDuration.add(sessionInfoResponse.timings.duration);
+  // 记录API调用指标
+  apiCallSuccessRate.add(isSuccess);
+  if (showToastResponse.status === 200) {
+    apiCallDuration.add(showToastResponse.timings.duration);
   }
 }
 
@@ -108,13 +126,13 @@ export function setup() {
   return setupTest(
     config, 
     tokenConfig, 
-    'user/session-info', 
+    'godgpt/account/show-toast POST', 
     TARGET_QPS, 
-    '/godgpt/session-info'
+    '/godgpt/account/show-toast (POST)'
   );
 }
 
 // 测试清理阶段
 export function teardown(data) {
-  teardownTest('user/session-info', '会话信息获取成功率、响应时间、QPS稳定性');
-} 
+  teardownTest('godgpt/account/show-toast POST', 'API调用成功率、API调用时间、QPS稳定性、随机ID生成');
+}

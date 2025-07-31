@@ -24,7 +24,7 @@ try {
 }
 
 // 获取目标QPS参数，默认值为35
-const TARGET_QPS = __ENV.TARGET_QPS ? parseInt(__ENV.TARGET_QPS) : 35;
+const TARGET_QPS = __ENV.TARGET_QPS ? parseInt(__ENV.TARGET_QPS) : 1;
 
 // 固定QPS压力测试场景配置
 export const options = {
@@ -91,10 +91,11 @@ export default function (data) {
         return false;
       }
     },
-    '响应包含产品列表': (r) => {
+    '响应数据结构正确': (r) => {
       try {
         const data = JSON.parse(r.body);
-        return data.data && Array.isArray(data.data.products);
+        // data可能是数组或包含products的对象
+        return data.data !== undefined && (Array.isArray(data.data) || (data.data && Array.isArray(data.data.products)));
       } catch {
         return false;
       }

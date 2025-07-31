@@ -69,6 +69,12 @@ k6 run godgpt-account-qps-test.js
 # 获取GodGPT账户信息测试（自定义QPS）
 k6 run -e TARGET_QPS=40 godgpt-account-qps-test.js
 
+# 更新GodGPT账户信息测试（默认50 QPS）
+k6 run godgpt-account-put-qps-test.js
+
+# 更新GodGPT账户信息测试（自定义QPS）
+k6 run -e TARGET_QPS=60 godgpt-account-put-qps-test.js
+
 # 获取用户档案信息测试（默认25 QPS）
 k6 run user-profile-qps-test.js
 
@@ -169,6 +175,7 @@ k6 run user-session-info-qps-test.js && \
 k6 run user-session-list-qps-test.js && \
 k6 run user-account-qps-test.js && \
 k6 run godgpt-account-qps-test.js && \
+k6 run godgpt-account-put-qps-test.js && \
 k6 run user-profile-qps-test.js && \
 k6 run profile-user-info-qps-test.js && \
 k6 run user-id-qps-test.js && \
@@ -213,4 +220,20 @@ k6 run -e TARGET_QPS=50 scripts/stress/qps/godgpt-account-qps-test.js
 k6 run -e TARGET_QPS=100 scripts/stress/qps/godgpt-account-qps-test.js
 
 
+k6 run -e TARGET_QPS=1 scripts/stress/qps/godgpt-account-put-qps-test.js
+k6 run -e TARGET_QPS=50 scripts/stress/qps/godgpt-account-put-qps-test.js
+k6 run -e TARGET_QPS=100 scripts/stress/qps/godgpt-account-put-qps-test.js
+
+
 k6 run -e TARGET_QPS=1 scripts/stress/qps/profile-user-info-qps-test.js
+
+
+k6 run -e TARGET_QPS=1 scripts/stress/qps/query-user-id-qps-test.js
+
+
+k6 run -e TARGET_QPS=1 scripts/stress/qps/payment-products-qps-test.js
+
+k6 run -e TARGET_QPS=1 scripts/stress/qps/godgpt-account-put-qps-test.js
+
+
+k6 run -e TARGET_QPS=1 scripts/stress/qps/godgpt-account-show-toast-qps-test.js

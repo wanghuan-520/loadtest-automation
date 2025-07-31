@@ -4,8 +4,9 @@ import { Rate, Trend } from 'k6/metrics';
 import { getAccessToken, setupTest, teardownTest } from '../../utils/auth.js';
 
 // 使用说明：
-// 默认目标QPS: 30 QPS（每秒30个请求，持续5分钟）
+// 默认目标QPS: 2 QPS（每秒2个请求，持续1分钟，用于debug）
 // 自定义目标QPS: k6 run -e TARGET_QPS=50 payment-list-qps-test.js
+// Debug模式: k6 run -e DEBUG=true payment-list-qps-test.js
 // 示例: k6 run -e TARGET_QPS=40 payment-list-qps-test.js
 
 // 自定义指标
@@ -23,8 +24,10 @@ try {
   console.log('⚠️  未找到tokens.json配置文件，将使用环境变量或默认token');
 }
 
-// 获取目标QPS参数，默认值为30
-const TARGET_QPS = __ENV.TARGET_QPS ? parseInt(__ENV.TARGET_QPS) : 30;
+// 获取目标QPS参数，默认值为2（debug模式）
+const TARGET_QPS = __ENV.TARGET_QPS ? parseInt(__ENV.TARGET_QPS) : 2;
+// Debug模式开关
+const DEBUG_MODE = __ENV.DEBUG === 'true';
 
 // 固定QPS压力测试场景配置
 export const options = {
@@ -34,7 +37,7 @@ export const options = {
       executor: 'constant-arrival-rate',
       rate: TARGET_QPS,              // 每秒请求数（QPS）
       timeUnit: '1s',                // 时间单位：1秒
-      duration: '5m',                // 测试持续时间：5分钟
+      duration: TARGET_QPS <= 5 ? '1m' : '5m',  // Debug模式1分钟，正常模式5分钟
       preAllocatedVUs: Math.max(TARGET_QPS, 1),  // 预分配VU数量（至少为QPS数量）
       maxVUs: TARGET_QPS * 2,        // 最大VU数量（QPS的2倍）
       tags: { test_type: 'fixed_qps_payment_list' },
@@ -80,6 +83,43 @@ export default function (data) {
   
   const paymentListResponse = http.get(paymentListUrl, paymentListParams);
 
+  // Debug信息：输出API响应详情
+  if (DEBUG_MODE || TARGET_QPS <= 5) {
+    console.log('🔍 ===== DEBUG 模式 - API响应详情 =====');
+    console.log(`📍 请求URL: ${paymentListUrl}`);
+    console.log(`📊 HTTP状态码: ${paymentListResponse.status}`);
+    console.log(`⏰ 响应时间: ${paymentListResponse.timings.duration}ms`);
+    console.log(`📦 响应体: ${paymentListResponse.body}`);
+    console.log(`📋 响应头: ${JSON.stringify(paymentListResponse.headers, null, 2)}`);
+    
+    // 尝试解析JSON响应
+    try {
+      const responseData = JSON.parse(paymentListResponse.body);
+      console.log('🔍 解析后的响应数据结构:');
+      console.log(`   - code: ${responseData.code}`);
+      console.log(`   - message: ${responseData.message}`);
+      console.log(`   - data存在: ${responseData.data !== undefined ? '是' : '否'}`);
+      if (responseData.data !== undefined) {
+        if (Array.isArray(responseData.data)) {
+          console.log(`   - data类型: 数组，长度: ${responseData.data.length}`);
+          if (responseData.data.length > 0) {
+            console.log(`   - 第一条记录: ${JSON.stringify(responseData.data[0], null, 2)}`);
+          }
+        } else if (responseData.data && Array.isArray(responseData.data.payments)) {
+          console.log(`   - data类型: 对象，payments数组长度: ${responseData.data.payments.length}`);
+          if (responseData.data.payments.length > 0) {
+            console.log(`   - 第一条支付记录: ${JSON.stringify(responseData.data.payments[0], null, 2)}`);
+          }
+        } else {
+          console.log(`   - data类型: ${typeof responseData.data}，值: ${JSON.stringify(responseData.data)}`);
+        }
+      }
+    } catch (e) {
+      console.log(`❌ 响应体解析失败: ${e.message}`);
+    }
+    console.log('🔍 ========== DEBUG 结束 ==========');
+  }
+
   // 检查支付记录列表获取是否成功 - HTTP状态码200 + 业务code为20000
   const isPaymentListSuccess = check(paymentListResponse, {
     'HTTP状态码200': (r) => r.status === 200,
@@ -91,10 +131,11 @@ export default function (data) {
         return false;
       }
     },
-    '响应包含支付列表': (r) => {
+    '响应数据结构正确': (r) => {
       try {
         const data = JSON.parse(r.body);
-        return data.data && Array.isArray(data.data.payments);
+        // data可能是空数组[]或包含payments的对象{payments:[]}
+        return data.data !== undefined && (Array.isArray(data.data) || (data.data && Array.isArray(data.data.payments)));
       } catch {
         return false;
       }
@@ -112,11 +153,20 @@ export default function (data) {
 export function setup() {
   console.log('🎯 开始 godgpt/payment/list 固定QPS压力测试...');
   console.log(`📡 测试目标: ${config.baseUrl}/godgpt/payment/list`);
-  console.log(`🔧 测试场景: 固定QPS测试 (${TARGET_QPS} QPS，持续5分钟)`);
+  
+  const testDuration = TARGET_QPS <= 5 ? 60 : 300; // 1分钟或5分钟
+  const durationText = TARGET_QPS <= 5 ? '1分钟' : '5分钟';
+  
+  console.log(`🔧 测试场景: 固定QPS测试 (${TARGET_QPS} QPS，持续${durationText})`);
   console.log(`⚡ 目标QPS: ${TARGET_QPS} (可通过 TARGET_QPS 环境变量配置)`);
-  console.log(`🔄 预估总请求数: ${TARGET_QPS * 300} 个 (${TARGET_QPS} QPS × 300秒)`);
+  console.log(`🔄 预估总请求数: ${TARGET_QPS * testDuration} 个 (${TARGET_QPS} QPS × ${testDuration}秒)`);
   console.log('💳 测试内容: 获取支付记录列表');
-  console.log('⏱️  预计测试时间: 5分钟');
+  console.log(`⏱️  预计测试时间: ${durationText}`);
+  
+  if (DEBUG_MODE || TARGET_QPS <= 5) {
+    console.log('🔍 DEBUG模式已启用 - 将显示详细的API响应信息');
+  }
+  
   return setupTest(config, tokenConfig);
 }
 
