@@ -21,7 +21,7 @@ let tokenConfig = {};
 try {
   tokenConfig = JSON.parse(open('../../../config/tokens.json'));
 } catch (error) {
-  console.log('⚠️  未找到tokens.json配置文件，将使用环境变量或默认token');
+  // 静默处理文件加载失败，使用环境变量或默认token
 }
 
 // 获取目标QPS参数，默认值为50

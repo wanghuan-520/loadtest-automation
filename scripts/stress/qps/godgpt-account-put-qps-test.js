@@ -21,24 +21,19 @@ let tokenConfig = {};
 try {
   tokenConfig = JSON.parse(open('../../../config/tokens.json'));
 } catch (error) {
-  console.log('⚠️  未找到tokens.json配置文件，将使用环境变量或默认token');
+  // 静默处理文件加载失败，使用环境变量或默认token
 }
 
 // 获取目标QPS参数，默认值为50
 const TARGET_QPS = __ENV.TARGET_QPS ? parseInt(__ENV.TARGET_QPS) : 50;
 
-// 生成随机全名的函数
+// 优化版随机全名生成函数 - 预生成常用数据
+const FIRST_NAMES = ['Alice', 'Bob', 'Charlie', 'Diana', 'Eve', 'Frank', 'Grace', 'Henry', 'Ivy', 'Jack'];
+const LAST_NAMES = ['Smith', 'Johnson', 'Brown', 'Davis', 'Miller', 'Wilson', 'Moore', 'Taylor', 'Anderson', 'Thomas'];
+
 function generateRandomFullName() {
-  const firstNames = ['Alice', 'Bob', 'Charlie', 'Diana', 'Eve', 'Frank', 'Grace', 'Henry', 'Ivy', 'Jack',
-                     'Kate', 'Liam', 'Maya', 'Noah', 'Olivia', 'Peter', 'Quinn', 'Ruby', 'Sam', 'Tina',
-                     'Uma', 'Victor', 'Wendy', 'Xavier', 'Yara', 'Zoe', '张三', '李四', '王五', '赵六',
-                     'Alex', 'Ben', 'Chris', 'David', 'Emma', 'Felix', 'George', 'Hannah', 'Ian', 'Julia'];
-  const lastNames = ['Smith', 'Johnson', 'Brown', 'Davis', 'Miller', 'Wilson', 'Moore', 'Taylor', 'Anderson', 'Thomas',
-                    'Jackson', 'White', 'Harris', 'Martin', 'Thompson', 'Garcia', 'Martinez', 'Robinson', 'Clark', 'Rodriguez',
-                    '陈', '王', '李', '张', '赵', '孙', '周', '吴', '郑', '冯'];
-  
-  const firstName = firstNames[Math.floor(Math.random() * firstNames.length)];
-  const lastName = lastNames[Math.floor(Math.random() * lastNames.length)];
+  const firstName = FIRST_NAMES[Math.floor(Math.random() * 10)];
+  const lastName = LAST_NAMES[Math.floor(Math.random() * 10)];
   const randomNum = Math.floor(Math.random() * 1000);
   
   return `${firstName}${lastName}${randomNum}`;
@@ -119,18 +114,10 @@ export default function (data) {
     }
   );
 
-  // 业务成功判断 - HTTP状态码200 + 业务code检查
+  // 优化版业务成功判断 - 减少JSON解析开销
   const isSuccess = check(accountResponse, {
     'HTTP状态码200': (r) => r.status === 200,
-    '响应有效': (r) => {
-      try {
-        const data = JSON.parse(r.body);
-        // 根据实际API响应格式调整成功判断逻辑
-        return r.status === 200 && data !== null;
-      } catch {
-        return r.status === 200;
-      }
-    }
+    '响应格式正确': (r) => r.status === 200 && r.body && r.body.includes('"code"'),
   });
   
   // 记录API调用指标
