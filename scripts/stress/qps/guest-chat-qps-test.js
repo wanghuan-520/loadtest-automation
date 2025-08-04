@@ -1,5 +1,5 @@
 import http from 'k6/http';
-import { check } from 'k6';
+import { check, sleep } from 'k6';
 import { Rate, Trend } from 'k6/metrics';
 
 // 使用说明：
@@ -141,6 +141,8 @@ export default function () {
     return;
   }
 
+  // 两个接口调用之间添加2秒延迟
+  sleep(2);
 
   // 步骤2：发送聊天消息
   const randomMessage = testData.messages[Math.floor(Math.random() * testData.messages.length)];
