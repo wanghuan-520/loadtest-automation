@@ -111,7 +111,9 @@ export default function (data) {
 
 // 测试设置阶段 - 使用通用的auth setup函数
 export function setup() {
+  const startTime = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
   console.log('🎯 开始 godgpt/payment/products 固定QPS压力测试...');
+  console.log(`🕐 测试开始时间: ${startTime}`);
   console.log(`📡 测试目标: ${config.baseUrl}/godgpt/payment/products`);
   console.log(`🔧 测试场景: 固定QPS测试 (${TARGET_QPS} QPS，持续5分钟)`);
   console.log(`⚡ 目标QPS: ${TARGET_QPS} (可通过 TARGET_QPS 环境变量配置)`);
@@ -123,7 +125,9 @@ export function setup() {
 
 // 测试清理阶段 - 使用通用的teardown函数
 export function teardown(data) {
+  const endTime = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
   console.log('✅ godgpt/payment/products 固定QPS压力测试完成');
+  console.log(`🕛 测试结束时间: ${endTime}`);
   console.log('🔍 关键指标：支付产品列表获取成功率、响应时间、QPS稳定性');
   console.log('📈 请分析QPS是否稳定、响应时间分布和系统资源使用情况');
   teardownTest(data);

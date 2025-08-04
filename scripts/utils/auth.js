@@ -67,7 +67,9 @@ export function getAccessToken(tokenConfig = {}) {
  * @returns {Object} setup返回的数据对象
  */
 export function setupTest(config, tokenConfig, testName, targetQps, apiEndpoint, additionalInfo = '') {
+  const startTime = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
   console.log(`🎯 开始 ${testName} 固定QPS压力测试...`);
+  console.log(`🕐 测试开始时间: ${startTime}`);
   console.log(`📡 测试目标: ${config.baseUrl}${apiEndpoint}`);
   console.log(`🔧 测试场景: 固定QPS测试 (${targetQps} QPS，持续5分钟)`);
   console.log(`⚡ 目标QPS: ${targetQps} (可通过 TARGET_QPS 环境变量配置)`);
@@ -101,7 +103,9 @@ export function setupTest(config, tokenConfig, testName, targetQps, apiEndpoint,
  * @param {string} keyMetrics - 关键指标描述
  */
 export function teardownTest(testName, keyMetrics) {
+  const endTime = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
   console.log(`✅ ${testName} 固定QPS压力测试完成`);
+  console.log(`🕛 测试结束时间: ${endTime}`);
   console.log(`🔍 关键指标：${keyMetrics}`);
   console.log('📈 请分析QPS是否稳定、响应时间分布和系统资源使用情况');
 } 
