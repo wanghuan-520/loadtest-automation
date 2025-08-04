@@ -37,7 +37,7 @@ export const options = {
       executor: 'constant-arrival-rate',
       rate: TARGET_QPS,              // 每秒请求数（QPS）
       timeUnit: '1s',                // 时间单位：1秒
-      duration: TARGET_QPS <= 5 ? '1m' : '5m',  // Debug模式1分钟，正常模式5分钟
+      duration: '5m',                // 测试持续时间：5分钟
       preAllocatedVUs: Math.max(TARGET_QPS, 1),  // 预分配VU数量（至少为QPS数量）
       maxVUs: TARGET_QPS * 2,        // 最大VU数量（QPS的2倍）
       tags: { test_type: 'fixed_qps_payment_list' },
@@ -125,8 +125,8 @@ export function setup() {
   console.log(`🕐 测试开始时间: ${startTime}`);
   console.log(`📡 测试目标: ${config.baseUrl}/godgpt/payment/list`);
   
-  const testDuration = TARGET_QPS <= 5 ? 60 : 300; // 1分钟或5分钟
-  const durationText = TARGET_QPS <= 5 ? '1分钟' : '5分钟';
+  const testDuration = 300; // 5分钟
+  const durationText = '5分钟';
   
   console.log(`🔧 测试场景: 固定QPS测试 (${TARGET_QPS} QPS，持续${durationText})`);
   console.log(`⚡ 目标QPS: ${TARGET_QPS} (可通过 TARGET_QPS 环境变量配置)`);
