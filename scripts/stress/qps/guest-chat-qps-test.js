@@ -196,7 +196,9 @@ export default function () {
 
   // 如果聊天失败，打印错误信息
   if (!isChatSuccess) {
-    console.error(`❌ 聊天响应失败 - HTTP状态码: ${chatResponse.status}, 响应体前500字符: ${chatResponse.body.substring(0, 500)}`);
+    console.error(`❌ 聊天响应失败 - HTTP状态码: ${chatResponse.status}`);
+    console.error(`完整响应体: ${chatResponse.body}`);
+    console.error(`响应头: ${JSON.stringify(chatResponse.headers, null, 2)}`);
   }
 
   // 记录自定义指标 - 只有业务成功才计入成功
