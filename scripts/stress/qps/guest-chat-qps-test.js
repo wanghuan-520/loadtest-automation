@@ -9,6 +9,7 @@ import { Rate, Trend } from 'k6/metrics';
 
 // 自定义指标
 const sessionCreationRate = new Rate('session_creation_success_rate');
+const sessionCreationDuration = new Trend('session_creation_duration');
 const chatResponseRate = new Rate('chat_response_success_rate');
 const chatResponseDuration = new Trend('chat_response_duration');
 const endToEndDuration = new Trend('end_to_end_duration');
@@ -59,6 +60,7 @@ export const options = {
   // thresholds: {
   //   http_req_failed: ['rate<0.01'],
   //   'session_creation_success_rate': ['rate>0.99'],
+  //   'session_creation_duration': ['p(95)<2000'],
   //   'chat_response_success_rate': ['rate>0.99'],
   //   'chat_response_duration': ['p(95)<3000'],
   //   'end_to_end_duration': ['p(95)<5000'],
@@ -117,6 +119,9 @@ export default function () {
 
   // 记录会话创建指标 - 只有HTTP200且业务code为20000才算成功
   sessionCreationRate.add(isSessionCreated);
+  if (isSessionCreated) {
+    sessionCreationDuration.add(createSessionResponse.timings.duration);
+  }
 
   // 如果会话创建失败，打印错误信息并跳过后续步骤
   if (!isSessionCreated) {
