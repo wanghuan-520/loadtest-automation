@@ -210,11 +210,21 @@ k6 run session-rename-qps-test.js
 4. 根据结果调整QPS参数，找到性能瓶颈点 
 
 
+P0:
+k6 run -e TARGET_QPS=1 scripts/stress/qps/guest-chat-qps-test.js
+k6 run -e TARGET_QPS=1 scripts/stress/qps/user-chat-qps-test.js
+
+
+P1:
 k6 run -e TARGET_QPS=1 scripts/stress/qps/user-session-list-qps-test.js
 k6 run -e TARGET_QPS=1 scripts/stress/qps/godgpt-account-qps-test.js
 k6 run -e TARGET_QPS=1 scripts/stress/qps/profile-user-info-qps-test.js
 k6 run -e TARGET_QPS=1 scripts/stress/qps/query-user-id-qps-test.js
 k6 run -e TARGET_QPS=1 scripts/stress/qps/payment-products-qps-test.js
-
 k6 run -e TARGET_QPS=1 scripts/stress/qps/godgpt-account-put-qps-test.js
 k6 run -e TARGET_QPS=1 scripts/stress/qps/godgpt-account-show-toast-qps-test.js
+
+
+
+k6 run -e TARGET_QPS=10 scripts/stress/qps/godgpt-account-put-qps-test.js
+k6 run -e TARGET_QPS=50 scripts/stress/qps/godgpt-account-show-toast-qps-test.js

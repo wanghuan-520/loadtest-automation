@@ -118,8 +118,9 @@ export default function () {
   // 记录会话创建指标 - 只有HTTP200且业务code为20000才算成功
   sessionCreationRate.add(isSessionCreated);
 
-  // 如果会话创建失败，跳过后续步骤
+  // 如果会话创建失败，打印错误信息并跳过后续步骤
   if (!isSessionCreated) {
+    console.error(`❌ 会话创建失败 - HTTP状态码: ${createSessionResponse.status}, 响应体: ${createSessionResponse.body}`);
     return;
   }
 
@@ -192,6 +193,11 @@ export default function () {
       }
     }
   });
+
+  // 如果聊天失败，打印错误信息
+  if (!isChatSuccess) {
+    console.error(`❌ 聊天响应失败 - HTTP状态码: ${chatResponse.status}, 响应体前500字符: ${chatResponse.body.substring(0, 500)}`);
+  }
 
   // 记录自定义指标 - 只有业务成功才计入成功
   chatResponseRate.add(isChatSuccess);
