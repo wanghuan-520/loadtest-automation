@@ -12,7 +12,7 @@ const sessionCreationRate = new Rate('session_creation_success_rate');
 const sessionCreationDuration = new Trend('session_creation_duration');
 const chatResponseRate = new Rate('chat_response_success_rate');
 const chatResponseDuration = new Trend('chat_response_duration');
-const endToEndDuration = new Trend('end_to_end_duration');
+
 
 // 从配置文件加载环境配置和测试数据
 const config = JSON.parse(open('../../../config/env.dev.json'));
@@ -63,13 +63,12 @@ export const options = {
   //   'session_creation_duration': ['p(95)<2000'],
   //   'chat_response_success_rate': ['rate>0.99'],
   //   'chat_response_duration': ['p(95)<3000'],
-  //   'end_to_end_duration': ['p(95)<5000'],
+
   // },
 };
 
 // 测试主函数
 export default function () {
-  const startTime = Date.now();
   
   // 生成随机信息避免聊天次数限制
   const randomIP = generateRandomIP();
@@ -212,10 +211,7 @@ export default function () {
     chatResponseDuration.add(chatResponse.timings.duration);
   }
   
-  // 计算端到端响应时间
-  const endTime = Date.now();
-  const endToEndTime = endTime - startTime;
-  endToEndDuration.add(endToEndTime);
+
 }
 
 // 测试设置阶段

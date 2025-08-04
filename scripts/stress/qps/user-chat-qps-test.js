@@ -19,7 +19,7 @@ const sessionCreationRate = new Rate('session_creation_success_rate');
 const chatResponseRate = new Rate('chat_response_success_rate');
 const chatResponseDuration = new Trend('chat_response_duration');
 const createResponseDuration = new Trend('create_response_duration');
-const endToEndDuration = new Trend('end_to_end_duration');
+
 
 // 从配置文件加载环境配置和测试数据
 const config = JSON.parse(open('../../../config/env.dev.json'));
@@ -58,13 +58,12 @@ export const options = {
   //   'session_creation_success_rate': ['rate>0.99'],
   //   'chat_response_success_rate': ['rate>0.99'],
   //   'chat_response_duration': ['p(95)<5000'],
-  //   'end_to_end_duration': ['p(95)<8000'],
+
   // },
 };
 
 // 测试主函数
 export default function (data) {
-  const startTime = Date.now();
   
   // 步骤1: 创建会话
   const createSessionUrl = `${data.baseUrl}/godgpt/create-session`;
@@ -215,10 +214,7 @@ export default function (data) {
     console.log(`❌ 聊天失败 - HTTP状态: ${chatResponse.status}, 响应长度: ${(chatResponse.body || '').length}, 响应前100字符: ${(chatResponse.body || '').substring(0, 100)}`);
   }
   
-  // 计算端到端响应时间
-  const endTime = Date.now();
-  const endToEndTime = endTime - startTime;
-  endToEndDuration.add(endToEndTime);
+
 }
 
 // 测试设置阶段
