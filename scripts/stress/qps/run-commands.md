@@ -36,6 +36,15 @@ k6 run godgpt-voice-chat-qps-test.js
 
 # 语音聊天测试（自定义QPS）
 k6 run -e TARGET_QPS=30 godgpt-voice-chat-qps-test.js
+
+# 语音聊天测试（启用性能阈值验证）
+k6 run -e TARGET_QPS=25 -e ENABLE_THRESHOLDS=true godgpt-voice-chat-qps-test.js
+
+# 语音聊天测试（启用DEBUG模式，查看详细请求响应）
+k6 run -e TARGET_QPS=5 -e DEBUG=true godgpt-voice-chat-qps-test.js
+
+# 语音聊天测试（完整调试模式）
+k6 run -e TARGET_QPS=5 -e ENABLE_THRESHOLDS=true -e DEBUG=true godgpt-voice-chat-qps-test.js
 ```
 
 ## 重要功能（P1优先级）
@@ -225,5 +234,10 @@ k6 run -e TARGET_QPS=1 scripts/stress/qps/godgpt-account-put-qps-test.js
 k6 run -e TARGET_QPS=1 scripts/stress/qps/godgpt-account-show-toast-qps-test.js
 
 
-
 k6 run -e TARGET_QPS=1 scripts/stress/qps/user-session-info-qps-test.js
+k6 run -e TARGET_QPS=1 scripts/stress/qps/payment-apple-subscription-qps-test.js
+k6 run -e TARGET_QPS=1 scripts/stress/qps/payment-list-qps-test.js
+
+k6 run -e TARGET_QPS=1 scripts/stress/qps/connect-token-qps-test.js
+k6 run -e TARGET_QPS=1 scripts/stress/qps/godgpt-voice-chat-qps-test.js
+

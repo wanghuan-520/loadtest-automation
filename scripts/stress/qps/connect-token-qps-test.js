@@ -6,13 +6,21 @@ import { Rate, Trend } from 'k6/metrics';
 // 默认目标QPS: 40 QPS（每秒40个请求，持续5分钟）
 // 自定义目标QPS: k6 run -e TARGET_QPS=60 connect-token-qps-test.js
 // 示例: k6 run -e TARGET_QPS=50 connect-token-qps-test.js
+// 注意: 使用固定的Google ID Token进行认证测试，无需额外环境变量
 
 // 自定义指标
 const tokenRequestRate = new Rate('token_request_success_rate');
 const tokenResponseDuration = new Trend('token_response_duration');
 
-// 从配置文件加载环境配置
-const config = JSON.parse(open('../../../config/env.dev.json'));
+// 固定使用的Google ID Token (从curl命令中获取)
+const FIXED_ID_TOKEN = 'eyJhbGciOiJSUzI1NiIsImtpZCI6ImRkNTMwMTIwNGZjMWQ2YTBkNjhjNzgzYTM1Y2M5YzEwYjI1ZTFmNGEiLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiJodHRwczovL2FjY291bnRzLmdvb2dsZS5jb20iLCJhenAiOiIxMzA0MTIxNTExNjctZTIybnB2MmZ0OHU2ZWhhNWpna25uMTVjcXIwbTc0dmcuYXBwcy5nb29nbGV1c2VyY29udGVudC5jb20iLCJhdWQiOiIxMzA0MTIxNTExNjctZTIybnB2MmZ0OHU2ZWhhNWpna25uMTVjcXIwbTc0dmcuYXBwcy5nb29nbGV1c2VyY29udGVudC5jb20iLCJzdWIiOiIxMTI5NjIyODM0OTM1ODA1MTU1MjEiLCJlbWFpbCI6Imh1YW4ud2FuZzUyMDUyMEBnbWFpbC5jb20iLCJlbWFpbF92ZXJpZmllZCI6dHJ1ZSwibm9uY2UiOiI2Njg5M2YwMWQ0YzA3YWRkOTAyMmFiN2Y1YzBlNGMyNTkxMjhlYTc2ZWMwYjI1YzQxNzQwOGYzMDMwNWM5NTU4IiwibmJmIjoxNzU0MzAxOTc3LCJuYW1lIjoi546L54SVIiwicGljdHVyZSI6Imh0dHBzOi8vbGgzLmdvb2dsZXVzZXJjb250ZW50LmNvbS9hL0FDZzhvY0k5a0ZiZ2kwR0ViOVVINWFYY3pocG1KdHNIdVF5VklNRklKQlh0UGQ0Y0gyTl9iQT1zOTYtYyIsImdpdmVuX25hbWUiOiLnhJUiLCJmYW1pbHlfbmFtZSI6IueOiyIsImlhdCI6MTc1NDMwMjI3NywiZXhwIjoxNzU0MzA1ODc3LCJqdGkiOiI2MGUwY2RjZTFiZWY2MjM0ODM1ZTQ3NTI4M2UzNjY2ZTAwY2ViMzhiIn0.f1ebx2TaJv9X5OB8Iu8QEp2KL8zqQrqJcdkqN2qN4_VrP55VeEycaDuHg-0dmzNKe-RdXAcZmgJ_1yACGtMDE49DWLUx_sfrugTYDDIQ-OMFPkvPaKIDg2XwuK_K_BIjExWN5fIu25rQCwYJHRQJV9qrDHgpeBwO7gDPgthn5pvu5chDQXcVtwSDCBrnt3ySixdU9HeeenKV185i-g8Nrh7zHqZzVQo8J1kVkpY_faI3TG424-hP2-VGlKIIQvProUKHebughC1o3vsnGNMvZ_MLjxpQn4moxf54FY821T-TqBnHizNPNeLKk4RUAFfVZ-O2a6BRmky4gP37y4nvhw';
+
+// 环境配置 - 基于curl命令更新
+const config = {
+  baseUrl: 'https://auth-station-dev-staging.aevatar.ai',
+  origin: 'https://godgpt-ui-dev.aelf.dev',
+  referer: 'https://godgpt-ui-dev.aelf.dev/'
+};
 
 // 获取目标QPS参数，默认值为40
 const TARGET_QPS = __ENV.TARGET_QPS ? parseInt(__ENV.TARGET_QPS) : 40;
@@ -46,20 +54,24 @@ export default function () {
   // 构造token获取请求
   const tokenUrl = `${config.baseUrl}/connect/token`;
   
-  // 构造请求体 - OAuth2 client credentials flow
-  const tokenPayload = new URLSearchParams({
-    'grant_type': 'client_credentials',
-    'client_id': __ENV.CLIENT_ID || 'test_client',
-    'client_secret': __ENV.CLIENT_SECRET || 'test_secret',
-    'scope': 'api'
-  }).toString();
+  // 构造请求体 - Google authentication flow (基于curl命令)
+  // k6不支持URLSearchParams，手动构建form-urlencoded字符串
+  const tokenPayload = [
+    'grant_type=google',
+    'client_id=AevatarAuthServer',
+    'apple_app_id=com.gpt.god',
+    'scope=Aevatar%20offline_access',
+    'source=web',
+    `id_token=${encodeURIComponent(FIXED_ID_TOKEN)}`
+  ].join('&');
   
-  // 构造请求头 - OAuth2标准格式
+  // 构造请求头 - 基于curl命令优化
   const tokenHeaders = {
     'accept': 'application/json',
-    'accept-language': 'zh-CN,zh;q=0.9',
+    'accept-language': 'en,zh-CN;q=0.9,zh;q=0.8',
     'content-type': 'application/x-www-form-urlencoded',
     'origin': config.origin,
+    'priority': 'u=1, i',
     'referer': config.referer,
     'sec-ch-ua': '"Not)A;Brand";v="8", "Chromium";v="138", "Google Chrome";v="138"',
     'sec-ch-ua-mobile': '?0',
@@ -114,9 +126,9 @@ export function setup() {
   console.log(`🔧 测试场景: 固定QPS测试 (${TARGET_QPS} QPS，持续5分钟)`);
   console.log(`⚡ 目标QPS: ${TARGET_QPS} (可通过 TARGET_QPS 环境变量配置)`);
   console.log(`🔄 预估总请求数: ${TARGET_QPS * 300} 个 (${TARGET_QPS} QPS × 300秒)`);
-  console.log('🔑 测试内容: OAuth2 token获取');
+  console.log('🔑 测试内容: Google ID Token认证');
   console.log('⏱️  预计测试时间: 5分钟');
-  console.log('⚠️  请确保设置了CLIENT_ID和CLIENT_SECRET环境变量');
+  console.log('🌐 认证方式: 使用固定的Google ID Token进行认证测试');
   return { baseUrl: config.baseUrl };
 }
 
@@ -125,6 +137,6 @@ export function teardown(data) {
   const endTime = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
   console.log('✅ connect/token 固定QPS压力测试完成');
   console.log(`🕛 测试结束时间: ${endTime}`);
-  console.log('🔍 关键指标：token获取成功率、响应时间、QPS稳定性');
+  console.log('🔍 关键指标：Google认证成功率、响应时间、QPS稳定性');
   console.log('📈 请分析QPS是否稳定、响应时间分布和系统资源使用情况');
 }

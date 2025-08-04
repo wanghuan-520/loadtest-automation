@@ -4,7 +4,7 @@ import { Rate, Trend } from 'k6/metrics';
 import { getAccessToken, setupTest, teardownTest } from '../../utils/auth.js';
 
 // 使用说明：
-// 默认目标QPS: 2 QPS（每秒2个请求，持续1分钟，用于debug）
+// 默认目标QPS: 2 QPS（每秒2个请求，持续1分钟）
 // 自定义目标QPS: k6 run -e TARGET_QPS=40 payment-apple-subscription-qps-test.js
 // Debug模式: k6 run -e DEBUG=true payment-apple-subscription-qps-test.js
 // 示例: k6 run -e TARGET_QPS=35 payment-apple-subscription-qps-test.js
@@ -83,38 +83,10 @@ export default function (data) {
   
   const appleSubscriptionResponse = http.get(appleSubscriptionUrl, appleSubscriptionParams);
 
-  // Debug信息：输出API响应详情
-  if (DEBUG_MODE || TARGET_QPS <= 5) {
-    console.log('🔍 ===== DEBUG 模式 - API响应详情 =====');
-    console.log(`📍 请求URL: ${appleSubscriptionUrl}`);
-    console.log(`📊 HTTP状态码: ${appleSubscriptionResponse.status}`);
-    console.log(`⏰ 响应时间: ${appleSubscriptionResponse.timings.duration}ms`);
+  // Debug信息：仅在DEBUG模式下显示简化信息
+  if (DEBUG_MODE) {
+    console.log(`🔍 DEBUG - URL: ${appleSubscriptionUrl}, 状态: ${appleSubscriptionResponse.status}, 响应时间: ${appleSubscriptionResponse.timings.duration}ms`);
     console.log(`📦 响应体: ${appleSubscriptionResponse.body}`);
-    console.log(`📋 响应头: ${JSON.stringify(appleSubscriptionResponse.headers, null, 2)}`);
-    
-    // 尝试解析JSON响应
-    try {
-      const responseData = JSON.parse(appleSubscriptionResponse.body);
-      console.log('🔍 解析后的响应数据结构:');
-      console.log(`   - code: ${responseData.code}`);
-      console.log(`   - message: ${responseData.message}`);
-      console.log(`   - data存在: ${responseData.data !== undefined ? '是' : '否'}`);
-      if (responseData.data !== undefined) {
-        console.log(`   - data类型: ${typeof responseData.data}`);
-        if (typeof responseData.data === 'object' && responseData.data !== null) {
-          console.log(`   - hasSubscription字段: ${responseData.data.hasSubscription !== undefined ? '存在' : '不存在'}`);
-          if (responseData.data.hasSubscription !== undefined) {
-            console.log(`   - hasSubscription值: ${responseData.data.hasSubscription}`);
-          }
-          console.log(`   - data完整内容: ${JSON.stringify(responseData.data, null, 2)}`);
-        } else {
-          console.log(`   - data值: ${JSON.stringify(responseData.data)}`);
-        }
-      }
-    } catch (e) {
-      console.log(`❌ 响应体解析失败: ${e.message}`);
-    }
-    console.log('🔍 ========== DEBUG 结束 ==========');
   }
 
   // 检查Apple订阅状态查询是否成功 - HTTP状态码200 + 业务code为20000
@@ -165,8 +137,8 @@ export function setup() {
   console.log('🍎 测试内容: 检查Apple订阅状态');
   console.log(`⏱️  预计测试时间: ${durationText}`);
   
-  if (DEBUG_MODE || TARGET_QPS <= 5) {
-    console.log('🔍 DEBUG模式已启用 - 将显示详细的API响应信息');
+  if (DEBUG_MODE) {
+    console.log('🔍 DEBUG模式已启用 - 将显示简化的API响应信息');
   }
   
   return setupTest(config, tokenConfig);

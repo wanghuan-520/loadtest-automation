@@ -4,7 +4,7 @@ import { Rate, Trend } from 'k6/metrics';
 import { getAccessToken, setupTest, teardownTest } from '../../utils/auth.js';
 
 // 使用说明：
-// 默认目标QPS: 2 QPS（每秒2个请求，持续1分钟，用于debug）
+// 默认目标QPS: 2 QPS（每秒2个请求，持续1分钟）
 // 自定义目标QPS: k6 run -e TARGET_QPS=50 payment-list-qps-test.js
 // Debug模式: k6 run -e DEBUG=true payment-list-qps-test.js
 // 示例: k6 run -e TARGET_QPS=40 payment-list-qps-test.js
@@ -83,41 +83,10 @@ export default function (data) {
   
   const paymentListResponse = http.get(paymentListUrl, paymentListParams);
 
-  // Debug信息：输出API响应详情
-  if (DEBUG_MODE || TARGET_QPS <= 5) {
-    console.log('🔍 ===== DEBUG 模式 - API响应详情 =====');
-    console.log(`📍 请求URL: ${paymentListUrl}`);
-    console.log(`📊 HTTP状态码: ${paymentListResponse.status}`);
-    console.log(`⏰ 响应时间: ${paymentListResponse.timings.duration}ms`);
+  // Debug信息：仅在DEBUG模式下显示简化信息
+  if (DEBUG_MODE) {
+    console.log(`🔍 DEBUG - URL: ${paymentListUrl}, 状态: ${paymentListResponse.status}, 响应时间: ${paymentListResponse.timings.duration}ms`);
     console.log(`📦 响应体: ${paymentListResponse.body}`);
-    console.log(`📋 响应头: ${JSON.stringify(paymentListResponse.headers, null, 2)}`);
-    
-    // 尝试解析JSON响应
-    try {
-      const responseData = JSON.parse(paymentListResponse.body);
-      console.log('🔍 解析后的响应数据结构:');
-      console.log(`   - code: ${responseData.code}`);
-      console.log(`   - message: ${responseData.message}`);
-      console.log(`   - data存在: ${responseData.data !== undefined ? '是' : '否'}`);
-      if (responseData.data !== undefined) {
-        if (Array.isArray(responseData.data)) {
-          console.log(`   - data类型: 数组，长度: ${responseData.data.length}`);
-          if (responseData.data.length > 0) {
-            console.log(`   - 第一条记录: ${JSON.stringify(responseData.data[0], null, 2)}`);
-          }
-        } else if (responseData.data && Array.isArray(responseData.data.payments)) {
-          console.log(`   - data类型: 对象，payments数组长度: ${responseData.data.payments.length}`);
-          if (responseData.data.payments.length > 0) {
-            console.log(`   - 第一条支付记录: ${JSON.stringify(responseData.data.payments[0], null, 2)}`);
-          }
-        } else {
-          console.log(`   - data类型: ${typeof responseData.data}，值: ${JSON.stringify(responseData.data)}`);
-        }
-      }
-    } catch (e) {
-      console.log(`❌ 响应体解析失败: ${e.message}`);
-    }
-    console.log('🔍 ========== DEBUG 结束 ==========');
   }
 
   // 检查支付记录列表获取是否成功 - HTTP状态码200 + 业务code为20000
@@ -165,8 +134,8 @@ export function setup() {
   console.log('💳 测试内容: 获取支付记录列表');
   console.log(`⏱️  预计测试时间: ${durationText}`);
   
-  if (DEBUG_MODE || TARGET_QPS <= 5) {
-    console.log('🔍 DEBUG模式已启用 - 将显示详细的API响应信息');
+  if (DEBUG_MODE) {
+    console.log('🔍 DEBUG模式已启用 - 将显示简化的API响应信息');
   }
   
   return setupTest(config, tokenConfig);
