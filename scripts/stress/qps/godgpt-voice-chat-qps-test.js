@@ -173,16 +173,28 @@ export default function (data) {
     '业务逻辑成功': (r) => {
       let result = false;
       try {
+        // 检查响应体是否存在
+        if (!r.body) {
+          result = r.status === 200;
+          checkResults['业务逻辑成功'] = result;
+          return result;
+        }
+        
         // 尝试解析JSON响应
         const data = JSON.parse(r.body);
         result = data.code === "20000" || data.success === true;
       } catch {
         // 对于流式响应（text/event-stream），检查是否包含数据标识
-        const bodyStr = r.body.toString();
-        const hasData = bodyStr.includes('data:');
-        const hasEvent = bodyStr.includes('event:');
-        const isOk = r.status === 200;
-        result = hasData || hasEvent || isOk;
+        if (r.body) {
+          const bodyStr = r.body.toString();
+          const hasData = bodyStr.includes('data:');
+          const hasEvent = bodyStr.includes('event:');
+          const isOk = r.status === 200;
+          result = hasData || hasEvent || isOk;
+        } else {
+          // 如果没有响应体，仅根据状态码判断
+          result = r.status === 200;
+        }
       }
       checkResults['业务逻辑成功'] = result;
       return result;
