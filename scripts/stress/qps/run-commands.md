@@ -241,8 +241,10 @@ k6 run -e TARGET_QPS=1 scripts/stress/qps/godgpt-account-show-toast-qps-test.js
 k6 run -e TARGET_QPS=1 scripts/stress/qps/user-session-info-qps-test.js
 k6 run -e TARGET_QPS=1 scripts/stress/qps/payment-list-qps-test.js
 k6 run -e TARGET_QPS=1 scripts/stress/qps/payment-apple-subscription-qps-test.js
-
-k6 run -e TARGET_QPS=1 scripts/stress/qps/godgpt-voice-chat-qps-test.js
 k6 run -e TARGET_QPS=1 scripts/stress/qps/connect-token-qps-test.js
+
+k6 run -e TARGET_QPS=1 scripts/stress/qps/invitation-redeem-qps-test.js
+k6 run -e TARGET_QPS=1 scripts/stress/qps/godgpt-voice-chat-qps-test.js
+
 
 
