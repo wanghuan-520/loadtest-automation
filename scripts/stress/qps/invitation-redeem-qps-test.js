@@ -27,6 +27,16 @@ try {
 // 获取目标QPS参数，默认值为20
 const TARGET_QPS = __ENV.TARGET_QPS ? parseInt(__ENV.TARGET_QPS) : 20;
 
+// 生成随机UUID的函数 - 用于userId参数
+function generateRandomUUID() {
+  // 生成随机UUID格式：xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0;
+    const v = c == 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+}
+
 // 固定QPS压力测试场景配置
 export const options = {
   scenarios: {
@@ -53,14 +63,18 @@ export const options = {
 export default function (data) {
   const startTime = Date.now();
   
+  // 生成随机userId
+  const userId = generateRandomUUID();
+  
   // 构造邀请码兑换请求
   const invitationRedeemUrl = `${data.baseUrl}/godgpt/invitation/redeem`;
   
-  // 使用固定邀请码进行测试
+  // 使用固定邀请码进行测试，并添加userId参数
   const fixedInviteCode = "uSTbNld";
   
   const invitationRedeemPayload = JSON.stringify({
-    inviteCode: fixedInviteCode
+    inviteCode: fixedInviteCode,
+    userId: userId  // 添加随机生成的userId参数
   });
   
   // 构造请求头 - 匹配curl命令，包含authorization token

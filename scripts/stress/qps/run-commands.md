@@ -223,6 +223,10 @@ P0:
 k6 run -e TARGET_QPS=1 scripts/stress/qps/guest-chat-qps-test.js
 k6 run -e TARGET_QPS=1 scripts/stress/qps/user-chat-qps-test.js
 
+k6 run -e TARGET_QPS=10 scripts/stress/qps/guest-create-session-qps-test.js
+k6 run -e TARGET_QPS=10 scripts/stress/qps/user-session-info-qps-test.js
+
+
 
 P1:
 k6 run -e TARGET_QPS=1 scripts/stress/qps/user-session-list-qps-test.js
@@ -238,7 +242,7 @@ k6 run -e TARGET_QPS=1 scripts/stress/qps/user-session-info-qps-test.js
 k6 run -e TARGET_QPS=1 scripts/stress/qps/payment-list-qps-test.js
 k6 run -e TARGET_QPS=1 scripts/stress/qps/payment-apple-subscription-qps-test.js
 
-
-k6 run -e TARGET_QPS=1 scripts/stress/qps/connect-token-qps-test.js
 k6 run -e TARGET_QPS=1 scripts/stress/qps/godgpt-voice-chat-qps-test.js
+k6 run -e TARGET_QPS=1 scripts/stress/qps/connect-token-qps-test.js
+
 
