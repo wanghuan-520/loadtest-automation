@@ -241,81 +241,9 @@ export default function (data) {
     voiceChatDuration.add(voiceChatResponse.timings.duration);
   }
   
-  // 显示成功/失败的详细信息（可通过SHOW_RESPONSE_DETAILS控制）
-  if (SHOW_RESPONSE_DETAILS && isVoiceChatSuccess) {
-    console.log(`✅ 语音聊天成功 [会话: ${sessionId.substring(0, 8)}...]`);
-    console.log(`   📊 响应时间: ${voiceChatResponse.timings.duration}ms`);
-    console.log(`   📏 响应大小: ${voiceChatResponse.body.length} 字符`);
-    console.log(`   🔧 状态码: ${voiceChatResponse.status}`);
-    
-    // 解析并显示响应内容的关键信息
-    try {
-      // 尝试解析JSON响应
-      const data = JSON.parse(voiceChatResponse.body);
-      console.log(`   💡 响应类型: JSON`);
-      console.log(`   📋 业务代码: ${data.code || 'N/A'}`);
-      console.log(`   📝 响应消息: ${data.message || data.msg || 'N/A'}`);
-      if (data.data) {
-        console.log(`   📦 数据字段: ${typeof data.data} (${JSON.stringify(data.data).substring(0, 100)}...)`);
-      }
-    } catch {
-      // 处理流式响应（text/event-stream）
-      const bodyStr = voiceChatResponse.body.toString();
-      console.log(`   💡 响应类型: 流式响应 (SSE)`);
-      
-      // 解析SSE数据
-      const lines = bodyStr.split('\n');
-      const dataLines = lines.filter(line => line.startsWith('data:'));
-      const eventLines = lines.filter(line => line.startsWith('event:'));
-      
-      console.log(`   🔄 数据事件: ${dataLines.length} 个data事件`);
-      console.log(`   📡 事件类型: ${eventLines.length} 个event事件`);
-      
-      // 显示前几个数据事件的内容
-      if (dataLines.length > 0) {
-        console.log(`   📄 首个数据: ${dataLines[0].substring(0, 100)}${dataLines[0].length > 100 ? '...' : ''}`);
-        if (dataLines.length > 1) {
-          console.log(`   📄 末个数据: ${dataLines[dataLines.length - 1].substring(0, 100)}${dataLines[dataLines.length - 1].length > 100 ? '...' : ''}`);
-        }
-      }
-      
-      // 检查是否包含AI回复
-      const hasAIContent = bodyStr.includes('"content"') || bodyStr.includes('"text"') || bodyStr.includes('"delta"');
-      if (hasAIContent) {
-        console.log(`   🤖 包含AI回复内容`);
-      }
-    }
-    
-  } else if (SHOW_RESPONSE_DETAILS) {
-    console.log(`❌ 语音聊天失败 [会话: ${sessionId.substring(0, 8)}...]`);
-    console.log(`   📊 响应时间: ${voiceChatResponse.timings.duration}ms`);
-    console.log(`   🔧 状态码: ${voiceChatResponse.status}`);
-    console.log(`   ❗ 失败检查项: ${Object.entries(checkResults)
-      .filter(([key, value]) => !value)
-      .map(([key, value]) => key).join(', ')}`);
-    
-    // 显示响应内容的摘要
-    if (voiceChatResponse.body && voiceChatResponse.body.length > 0) {
-      console.log(`   📝 响应摘要: ${voiceChatResponse.body.substring(0, 150)}${voiceChatResponse.body.length > 150 ? '...' : ''}`);
-    }
-  }
-  
-  // 在显示响应详情时显示分隔线
-  if (SHOW_RESPONSE_DETAILS) {
-    console.log('─'.repeat(80));
-  }
-  
-  // 如果语音聊天失败，记录详细错误信息用于调试
-  if (!isVoiceChatSuccess) {
-    console.error(`❌ 语音聊天失败详情:`);
-    console.error(`   HTTP状态码: ${voiceChatResponse.status}`);
-    console.error(`   会话ID: ${sessionId}`);
-    console.error(`   语音语言: en (${1})`);
-    console.error(`   消息类型: ${FIXED_MESSAGE_TYPE}`);
-    console.error(`   音频时长: ${FIXED_VOICE_DURATION}s`);
-    console.error(`   响应时间: ${voiceChatResponse.timings.duration}ms`);
-    console.error(`   响应头: ${JSON.stringify(voiceChatResponse.headers)}`);
-    console.error(`   响应体前200字符: ${voiceChatResponse.body.substring(0, 200)}`);
+  // 如果语音聊天失败，记录错误信息用于调试（可通过SHOW_RESPONSE_DETAILS控制）
+  if (!isVoiceChatSuccess && SHOW_RESPONSE_DETAILS) {
+    console.error(`❌ 语音聊天失败 [会话: ${sessionId.substring(0, 8)}...] 状态码: ${voiceChatResponse.status}`);
     console.error(`   失败检查项: ${Object.entries(checkResults)
       .filter(([key, value]) => !value)
       .map(([key, value]) => key)
