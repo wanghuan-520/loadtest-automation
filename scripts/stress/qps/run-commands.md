@@ -39,12 +39,6 @@ k6 run -e TARGET_QPS=30 godgpt-voice-chat-qps-test.js
 
 # 语音聊天测试（启用性能阈值验证）
 k6 run -e TARGET_QPS=25 -e ENABLE_THRESHOLDS=true godgpt-voice-chat-qps-test.js
-
-# 语音聊天测试（启用DEBUG模式，查看详细请求响应）
-k6 run -e TARGET_QPS=5 -e DEBUG=true godgpt-voice-chat-qps-test.js
-
-# 语音聊天测试（完整调试模式）
-k6 run -e TARGET_QPS=5 -e ENABLE_THRESHOLDS=true -e DEBUG=true godgpt-voice-chat-qps-test.js
 ```
 
 ## 重要功能（P1优先级）
@@ -132,6 +126,15 @@ k6 run -e TARGET_QPS=45 payment-products-qps-test.js
 
 ### 认证系统功能
 ```bash
+# GodGPT用户注册测试（默认5 QPS）
+k6 run godgpt-register-qps-test.js
+
+# GodGPT用户注册测试（自定义QPS）
+k6 run -e TARGET_QPS=10 godgpt-register-qps-test.js
+
+# GodGPT用户注册测试（启用DEBUG模式，查看详细请求响应）
+k6 run -e TARGET_QPS=3 -e DEBUG=true godgpt-register-qps-test.js
+
 # Token获取测试（默认40 QPS）
 k6 run connect-token-qps-test.js
 
@@ -234,7 +237,6 @@ k6 run -e TARGET_QPS=1 scripts/stress/qps/godgpt-account-qps-test.js
 k6 run -e TARGET_QPS=1 scripts/stress/qps/profile-user-info-qps-test.js
 k6 run -e TARGET_QPS=1 scripts/stress/qps/query-user-id-qps-test.js
 k6 run -e TARGET_QPS=1 scripts/stress/qps/payment-products-qps-test.js
-k6 run -e TARGET_QPS=1 scripts/stress/qps/godgpt-account-put-qps-test.js
 k6 run -e TARGET_QPS=1 scripts/stress/qps/godgpt-account-show-toast-qps-test.js
 
 
@@ -243,8 +245,17 @@ k6 run -e TARGET_QPS=1 scripts/stress/qps/payment-list-qps-test.js
 k6 run -e TARGET_QPS=1 scripts/stress/qps/payment-apple-subscription-qps-test.js
 k6 run -e TARGET_QPS=1 scripts/stress/qps/connect-token-qps-test.js
 
-k6 run -e TARGET_QPS=1 scripts/stress/qps/invitation-redeem-qps-test.js
+k6 run -e TARGET_QPS=1 scripts/stress/qps/godgpt-account-put-qps-test.js
 k6 run -e TARGET_QPS=1 scripts/stress/qps/godgpt-voice-chat-qps-test.js
+k6 run -e TARGET_QPS=1 scripts/stress/qps/invitation-redeem-qps-test.js
+
+
+
+
+
+
+测试数据：
+k6 run -e TARGET_QPS=3 -e DEBUG=true godgpt-register-qps-test.js
 
 
 

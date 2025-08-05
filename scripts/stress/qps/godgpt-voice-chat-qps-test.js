@@ -13,7 +13,7 @@ import { getAccessToken, setupTest, teardownTest } from '../../utils/auth.js';
 // - preAllocatedVUs: TARGET_QPS (最少5个) - 预分配足够VU避免延迟
 // - 超时时间: 60秒 - 语音聊天处理时间较长
 // - 随机化UserAgent: 避免请求被服务器限制
-// - 智能会话ID生成: 模拟真实用户行为
+// - 固定会话ID: 使用固定sessionId进行稳定性测试
 // - 固定语音参数: 使用统一的测试参数确保一致性
 
 // 生成随机User-Agent函数
@@ -24,54 +24,6 @@ function generateRandomUserAgent() {
   const webkitVersion = webkitVersions[Math.floor(Math.random() * webkitVersions.length)];
   
   return `Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/${webkitVersion} (KHTML, like Gecko) Chrome/${chromeVersion} Safari/${webkitVersion}`;
-}
-
-// 为不同用户生成随机会话ID池 - 在测试期间动态创建有效会话
-const sessionPool = [];
-
-// 创建会话的函数
-function createSession(data, randomUserAgent) {
-  const createSessionUrl = `${data.baseUrl}/godgpt/create-session`;
-  const createSessionPayload = JSON.stringify({
-    guider: ''
-  });
-  
-  const sessionHeaders = {
-    'accept': '*/*',
-    'accept-language': 'zh-CN,zh;q=0.9',
-    'authorization': `Bearer ${data.bearerToken}`,
-    'content-type': 'application/json',
-    'origin': config.origin,
-    'priority': 'u=1, i',
-    'referer': config.referer,
-    'sec-ch-ua': '"Not)A;Brand";v="8", "Chromium";v="138", "Google Chrome";v="138"',
-    'sec-ch-ua-mobile': '?0',
-    'sec-ch-ua-platform': '"macOS"',
-    'sec-fetch-dest': 'empty',
-    'sec-fetch-mode': 'cors',
-    'sec-fetch-site': 'cross-site',
-    'user-agent': randomUserAgent,
-  };
-  
-  const sessionParams = {
-    headers: sessionHeaders,
-    timeout: '30s',
-  };
-  
-  const createSessionResponse = http.post(createSessionUrl, createSessionPayload, sessionParams);
-  
-  // 检查会话创建是否成功
-  if (createSessionResponse.status === 200) {
-    try {
-      const responseData = JSON.parse(createSessionResponse.body);
-      if (responseData && responseData.code === '20000' && responseData.data) {
-        return responseData.data; // 返回新创建的sessionId
-      }
-    } catch (error) {
-      // 会话创建响应解析失败
-    }
-  }
-  return null;
 }
 
 // 自定义指标
@@ -149,13 +101,8 @@ export default function (data) {
   // 生成随机userId
   const userId = generateRandomUUID();
   
-  // 步骤1: 创建会话 - 确保使用有效的会话ID
-  const sessionId = createSession(data, randomUserAgent);
-  
-  if (!sessionId) {
-    console.log('❌ 会话创建失败，跳过语音聊天测试');
-    return; // 如果会话创建失败，直接返回
-  }
+  // 步骤1: 使用固定的会话ID - 为稳定性测试固定sessionId
+  const sessionId = "56918827-3851-44e7-a32e-27d06696da8f";
   
   // 步骤2: 构造语音聊天请求
   const voiceChatUrl = `${data.baseUrl}/godgpt/voice/chat`;
@@ -276,7 +223,8 @@ export function setup() {
   console.log(`🔄 预估总请求数: ${TARGET_QPS * 300} 个 (${TARGET_QPS} QPS × 300秒)`);
   console.log(`👥 VU配置: 预分配 ${Math.max(TARGET_QPS, 5)} 个，最大 ${Math.max(TARGET_QPS * 5, 10)} 个`);
   console.log(`⏰ 超时设置: 60秒 (适应语音聊天长处理时间)`);
-  console.log(`🎭 随机化: UserAgent、会话ID (模拟真实用户)`);
+  console.log(`🎭 随机化: UserAgent (会话ID已固定为稳定性测试)`);
+  console.log(`🆔 固定会话ID: 56918827-3851-44e7-a32e-27d06696da8f`);
   console.log(`📊 性能阈值: ${__ENV.ENABLE_THRESHOLDS ? '已启用' : '未启用'} (可通过 ENABLE_THRESHOLDS=true 启用)`);
   console.log(`📋 响应详情: ${SHOW_RESPONSE_DETAILS ? '已启用' : '已禁用'} (可通过 SHOW_RESPONSE_DETAILS=false 关闭)`);
   console.log('🎤 测试内容: 语音聊天功能 (音频数据上传)');
