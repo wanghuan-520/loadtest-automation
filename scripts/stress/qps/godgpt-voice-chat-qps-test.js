@@ -6,8 +6,7 @@ import { getAccessToken, setupTest, teardownTest } from '../../utils/auth.js';
 // 使用说明：
 // 默认目标QPS: 20 QPS（每秒20个请求，持续5分钟）
 // 自定义目标QPS: k6 run -e TARGET_QPS=30 godgpt-voice-chat-qps-test.js
-// 启用DEBUG模式: k6 run -e TARGET_QPS=5 -e DEBUG=true godgpt-voice-chat-qps-test.js
-// 完整示例: k6 run -e TARGET_QPS=25 -e ENABLE_THRESHOLDS=true -e DEBUG=true godgpt-voice-chat-qps-test.js
+// 完整示例: k6 run -e TARGET_QPS=25 -e ENABLE_THRESHOLDS=true godgpt-voice-chat-qps-test.js
 //
 // 🔧 性能优化说明：
 // - maxVUs: TARGET_QPS * 5 (最少10个) - 语音聊天需要较长处理时间
@@ -69,14 +68,9 @@ function createSession(data, randomUserAgent) {
         return responseData.data; // 返回新创建的sessionId
       }
     } catch (error) {
-      debugLog('会话创建响应解析失败', error);
+      // 会话创建响应解析失败
     }
   }
-  
-  debugLog('会话创建失败', {
-    status: createSessionResponse.status,
-    body: createSessionResponse.body.substring(0, 200)
-  });
   return null;
 }
 
@@ -108,22 +102,9 @@ try {
 // 获取目标QPS参数，默认值为20
 const TARGET_QPS = __ENV.TARGET_QPS ? parseInt(__ENV.TARGET_QPS) : 20;
 
-// DEBUG模式开关 - 可通过环境变量 DEBUG=true 启用
-const DEBUG_MODE = __ENV.DEBUG === 'true';
-
 // 响应详情模式：是否显示每个请求的响应信息（默认启用）
 // 可通过 SHOW_RESPONSE_DETAILS=false 关闭以减少日志输出
 const SHOW_RESPONSE_DETAILS = __ENV.SHOW_RESPONSE_DETAILS !== 'false';
-
-// Debug日志函数
-function debugLog(message, data = null) {
-  if (DEBUG_MODE) {
-    console.log(`🐛 [DEBUG] ${message}`);
-    if (data) {
-      console.log(`    ${JSON.stringify(data, null, 2)}`);
-    }
-  }
-}
 
 // 固定QPS压力测试场景配置
 export const options = {
@@ -159,7 +140,7 @@ export default function (data) {
   const sessionId = createSession(data, randomUserAgent);
   
   if (!sessionId) {
-    debugLog('❌ 会话创建失败，跳过语音聊天测试');
+    console.log('❌ 会话创建失败，跳过语音聊天测试');
     return; // 如果会话创建失败，直接返回
   }
   
@@ -234,9 +215,6 @@ export default function (data) {
         // 尝试解析JSON响应
         const data = JSON.parse(r.body);
         result = data.code === "20000" || data.success === true;
-        if (DEBUG_MODE) {
-          debugLog('JSON响应解析结果', { code: data.code, success: data.success, message: data.message });
-        }
       } catch {
         // 对于流式响应（text/event-stream），检查是否包含数据标识
         const bodyStr = r.body.toString();
@@ -244,9 +222,6 @@ export default function (data) {
         const hasEvent = bodyStr.includes('event:');
         const isOk = r.status === 200;
         result = hasData || hasEvent || isOk;
-        if (DEBUG_MODE) {
-          debugLog('流式响应检查结果', { hasData, hasEvent, isOk, bodyLength: bodyStr.length });
-        }
       }
       checkResults['业务逻辑成功'] = result;
       return result;
@@ -257,11 +232,6 @@ export default function (data) {
       return result;
     }
   });
-  
-  // Debug: 在DEBUG模式下显示验证结果
-  if (DEBUG_MODE) {
-    debugLog('验证结果', { checkResults, isVoiceChatSuccess });
-  }
 
   // 记录自定义指标 - 只有业务成功才计入成功
   voiceChatRate.add(isVoiceChatSuccess);
@@ -316,11 +286,6 @@ export default function (data) {
       }
     }
     
-    // 在DEBUG模式下显示响应细节
-    if (DEBUG_MODE) {
-      debugLog('响应头', voiceChatResponse.headers);
-      debugLog('响应体摘要', voiceChatResponse.body.substring(0, 200) + '...');
-    }
   } else if (SHOW_RESPONSE_DETAILS) {
     console.log(`❌ 语音聊天失败 [会话: ${sessionId.substring(0, 8)}...]`);
     console.log(`   📊 响应时间: ${voiceChatResponse.timings.duration}ms`);
@@ -332,10 +297,6 @@ export default function (data) {
     // 显示响应内容的摘要
     if (voiceChatResponse.body && voiceChatResponse.body.length > 0) {
       console.log(`   📝 响应摘要: ${voiceChatResponse.body.substring(0, 150)}${voiceChatResponse.body.length > 150 ? '...' : ''}`);
-    }
-    
-    if (DEBUG_MODE) {
-      debugLog('失败响应体', voiceChatResponse.body.substring(0, 300) + '...');
     }
   }
   
@@ -375,16 +336,12 @@ export function setup() {
   console.log(`⏰ 超时设置: 60秒 (适应语音聊天长处理时间)`);
   console.log(`🎭 随机化: UserAgent、会话ID (模拟真实用户)`);
   console.log(`📊 性能阈值: ${__ENV.ENABLE_THRESHOLDS ? '已启用' : '未启用'} (可通过 ENABLE_THRESHOLDS=true 启用)`);
-  console.log(`🐛 DEBUG模式: ${DEBUG_MODE ? '已启用' : '未启用'} (可通过 DEBUG=true 启用详细日志)`);
   console.log(`📋 响应详情: ${SHOW_RESPONSE_DETAILS ? '已启用' : '已禁用'} (可通过 SHOW_RESPONSE_DETAILS=false 关闭)`);
   console.log('🎤 测试内容: 语音聊天功能 (音频数据上传)');
   console.log(`🌐 固定语言: ${FIXED_VOICE_LANGUAGE}`);
   console.log('📡 响应类型: Server-Sent Events (流式)');
   console.log('⏱️  预计测试时间: 5分钟');
   
-  if (DEBUG_MODE) {
-    console.log('\n🐛 DEBUG模式已启用 - 将显示验证详情和响应摘要\n');
-  }
   return setupTest(config, tokenConfig);
 }
 
