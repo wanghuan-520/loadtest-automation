@@ -4,9 +4,9 @@ import { Rate, Trend } from 'k6/metrics';
 import { getAccessToken, setupTest, teardownTest } from '../../utils/auth.js';
 
 // 使用说明：
-// 默认目标QPS: 20 QPS（每秒20个请求，持续5分钟）
-// 自定义目标QPS: k6 run -e TARGET_QPS=30 godgpt-voice-chat-qps-test.js
-// 完整示例: k6 run -e TARGET_QPS=25 -e ENABLE_THRESHOLDS=true godgpt-voice-chat-qps-test.js
+// 默认目标QPS: 1 QPS（每秒1个请求，持续5分钟）
+// 自定义目标QPS: k6 run -e TARGET_QPS=5 godgpt-voice-chat-qps-test.js
+// 完整示例: k6 run -e TARGET_QPS=3 -e ENABLE_THRESHOLDS=true godgpt-voice-chat-qps-test.js
 //
 // 🔧 性能优化说明：
 // - maxVUs: TARGET_QPS * 5 (最少10个) - 语音聊天需要较长处理时间
@@ -99,8 +99,18 @@ try {
   console.log('⚠️  未找到tokens.json配置文件，将使用环境变量或默认token');
 }
 
-// 获取目标QPS参数，默认值为20
-const TARGET_QPS = __ENV.TARGET_QPS ? parseInt(__ENV.TARGET_QPS) : 20;
+// 获取目标QPS参数，默认值为1
+const TARGET_QPS = __ENV.TARGET_QPS ? parseInt(__ENV.TARGET_QPS) : 1;
+
+// 生成随机UUID的函数 - 用于userId参数
+function generateRandomUUID() {
+  // 生成随机UUID格式：xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0;
+    const v = c == 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+}
 
 // 响应详情模式：是否显示每个请求的响应信息（默认启用）
 // 可通过 SHOW_RESPONSE_DETAILS=false 关闭以减少日志输出
@@ -136,6 +146,9 @@ export default function (data) {
   // 生成随机信息，模拟真实用户
   const randomUserAgent = generateRandomUserAgent();
   
+  // 生成随机userId
+  const userId = generateRandomUUID();
+  
   // 步骤1: 创建会话 - 确保使用有效的会话ID
   const sessionId = createSession(data, randomUserAgent);
   
@@ -151,14 +164,15 @@ export default function (data) {
 
   // 构造语音聊天请求
   
-  // 构造请求体 - 完全匹配curl示例格式
+  // 构造请求体 - 完全匹配curl示例格式，并添加userId
   const voiceChatPayload = JSON.stringify({
     content: sampleAudioData, // 使用模拟的音频数据
     region: "", // 设置为空字符串，匹配curl示例
     sessionId: sessionId, // 使用动态生成的会话ID
     messageType: FIXED_MESSAGE_TYPE,
     voiceLanguage: 1, // 使用数字格式，匹配curl示例
-    voiceDurationSeconds: FIXED_VOICE_DURATION
+    voiceDurationSeconds: FIXED_VOICE_DURATION,
+    userId: userId // 添加随机生成的userId参数
   });
   
   // 构造请求头 - 参照curl示例和API文档格式

@@ -4,9 +4,9 @@ import { Rate, Trend } from 'k6/metrics';
 import { getAccessToken, setupTest, teardownTest } from '../../utils/auth.js';
 
 // 使用说明：
-// 默认目标QPS: 50 QPS（每秒50个请求，持续5分钟）
-// 自定义目标QPS: k6 run -e TARGET_QPS=100 godgpt-account-put-qps-test.js
-// 示例: k6 run -e TARGET_QPS=80 godgpt-account-put-qps-test.js
+// 默认目标QPS: 1 QPS（每秒1个请求，持续5分钟）
+// 自定义目标QPS: k6 run -e TARGET_QPS=10 godgpt-account-put-qps-test.js
+// 示例: k6 run -e TARGET_QPS=5 godgpt-account-put-qps-test.js
 
 // 自定义指标
 const apiCallSuccessRate = new Rate('api_call_success_rate');
@@ -24,8 +24,18 @@ try {
   // 静默处理文件加载失败，使用环境变量或默认token
 }
 
-// 获取目标QPS参数，默认值为50
-const TARGET_QPS = __ENV.TARGET_QPS ? parseInt(__ENV.TARGET_QPS) : 50;
+// 获取目标QPS参数，默认值为1
+const TARGET_QPS = __ENV.TARGET_QPS ? parseInt(__ENV.TARGET_QPS) : 1;
+
+// 生成随机UUID的函数 - 用于userId参数
+function generateRandomUUID() {
+  // 生成随机UUID格式：xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0;
+    const v = c == 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+}
 
 // 优化版随机全名生成函数 - 预生成常用数据
 const FIRST_NAMES = ['Alice', 'Bob', 'Charlie', 'Diana', 'Eve', 'Frank', 'Grace', 'Henry', 'Ivy', 'Jack'];
@@ -77,6 +87,9 @@ export default function (data) {
   const genders = ['Male', 'Female'];
   const randomGender = genders[Math.floor(Math.random() * genders.length)];
   
+  // 生成随机userId
+  const userId = generateRandomUUID();
+  
   // 构造请求头 - 匹配curl命令，使用动态Bearer token
   const headers = {
     'accept': '*/*',
@@ -96,12 +109,13 @@ export default function (data) {
     'GodgptLanguage': 'zh-TW',
   };
   
-  // 请求体数据 - 使用随机fullName
+  // 请求体数据 - 使用随机fullName和userId
   const requestBody = {
     "gender": randomGender,
     "birthDate": randomBirthDate,
     "birthPlace": "China🇨🇳",
-    "fullName": randomFullName
+    "fullName": randomFullName,
+    "userId": userId
   };
 
   // 调用 godgpt/account PUT接口
