@@ -226,13 +226,7 @@ export default function (data) {
 
 // 测试设置阶段 - 使用通用的auth setup函数
 export function setup() {
-  const startTime = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
-  console.log('🎯 开始 godgpt/voice/chat 固定QPS压力测试...');
-  console.log(`🕐 测试开始时间: ${startTime}`);
-  console.log(`📡 测试目标: ${config.baseUrl}/godgpt/voice/chat`);
-  console.log(`🔧 测试场景: 固定QPS测试 (${TARGET_QPS} QPS，持续5分钟)`);
-  console.log(`⚡ 目标QPS: ${TARGET_QPS} (可通过 TARGET_QPS 环境变量配置)`);
-  console.log(`🔄 预估总请求数: ${TARGET_QPS * 300} 个 (${TARGET_QPS} QPS × 300秒)`);
+  // 语音聊天测试特有的配置信息
   console.log(`👥 VU配置: 预分配 ${Math.max(TARGET_QPS, 5)} 个，最大 ${Math.max(TARGET_QPS * 5, 10)} 个`);
   console.log(`⏰ 超时设置: 60秒 (适应语音聊天长处理时间)`);
   console.log(`🎭 随机化: UserAgent (会话ID已固定为稳定性测试)`);
@@ -242,22 +236,18 @@ export function setup() {
   console.log('🎤 测试内容: 语音聊天功能 (音频数据上传)');
   console.log(`🌐 固定语言: ${FIXED_VOICE_LANGUAGE}`);
   console.log('📡 响应类型: Server-Sent Events (流式)');
-  console.log('⏱️  预计测试时间: 5分钟');
   
-  return setupTest(config, tokenConfig);
+  return setupTest(config, tokenConfig, 'godgpt/voice/chat', TARGET_QPS, '/godgpt/voice/chat');
 }
 
 // 测试清理阶段 - 使用通用的teardown函数
 export function teardown(data) {
-  const endTime = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
-  console.log('✅ godgpt/voice/chat 固定QPS压力测试完成');
-  console.log(`🕛 测试结束时间: ${endTime}`);
-  console.log('🔍 关键指标分析：');
-  console.log('   📊 voice_chat_success_rate: 语音聊天业务成功率 (含流式响应验证)');
-  console.log('   ⏱️  voice_chat_duration: 成功请求的响应时间分布');
-  console.log('   📈 voice_chat_request_duration: 所有请求的响应时间分布');
-  console.log('   🚀 http_req_rate: 实际达到的QPS稳定性');
-  console.log('   🎵 音频处理性能: 语音转文本和AI回复生成时间');
+  // 语音聊天测试特有的指标说明
+  const keyMetrics = 'voice_chat_success_rate (业务成功率), voice_chat_duration (响应时间), voice_chat_request_duration (所有请求时间)';
+  
+  teardownTest('godgpt/voice/chat', keyMetrics);
+  
+  // 语音聊天特有的性能分析建议
   console.log('📋 语音聊天性能分析建议：');
   console.log('   1. 检查QPS是否稳定维持在目标值 (语音处理较重)');
   console.log('   2. 分析P95响应时间是否在可接受范围内(<10s)');
@@ -265,5 +255,4 @@ export function teardown(data) {
   console.log('   4. 观察流式响应的完整性和稳定性');
   console.log('   5. 对比音频时长与处理时间的关系');
   console.log('   6. 检查固定参数下的性能稳定性');
-  teardownTest(data);
 }
