@@ -85,9 +85,10 @@ export default function (data) {
     'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36',
   };
 
-  // 请求体数据 - 包含随机生成的ID
+  // 请求体数据 - 包含随机生成的ID和UserId（使用相同的随机UUID）
   const requestBody = {
-    "id": randomId
+    "id": randomId,
+    "UserId": randomId  // 使用相同的随机UUID作为用户ID
   };
 
   // 调用 godgpt/account/show-toast POST接口
