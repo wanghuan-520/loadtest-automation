@@ -4,13 +4,20 @@ import { Rate, Trend } from 'k6/metrics';
 import { getAccessToken, setupTest, teardownTest } from '../../utils/auth.js';
 
 // 使用说明：
-// 默认目标QPS: 20 QPS（每秒20个请求，持续5分钟）
-// 自定义目标QPS: k6 run -e TARGET_QPS=30 invitation-redeem-qps-test.js
-// 示例: k6 run -e TARGET_QPS=25 invitation-redeem-qps-test.js
+// 默认目标QPS: 1 QPS（每秒1个请求，持续5分钟）
+// 自定义目标QPS: k6 run -e TARGET_QPS=5 invitation-redeem-qps-test.js
+// 示例: k6 run -e TARGET_QPS=10 invitation-redeem-qps-test.js
+// 
+// ⚠️  压测注意事项：
+// - 如果出现大量超时(>30s)，说明服务器压力过大，建议降低QPS
+// - 推荐从低QPS开始测试：1 → 3 → 5 → 10，逐步提升
+// - 监控服务器CPU、内存使用率，避免影响生产环境
 
 // 自定义指标
 const invitationRedeemSuccessRate = new Rate('invitation_redeem_success_rate');
 const invitationRedeemDuration = new Trend('invitation_redeem_duration');
+const timeoutRate = new Rate('invitation_redeem_timeout_rate'); // 超时率统计
+const slowResponseRate = new Rate('invitation_redeem_slow_response_rate'); // 慢响应率统计
 
 // 从配置文件加载环境配置和测试数据
 const config = JSON.parse(open('../../../config/env.dev.json'));
@@ -24,8 +31,8 @@ try {
   console.log('⚠️  未找到tokens.json配置文件，将使用环境变量或默认token');
 }
 
-// 获取目标QPS参数，默认值为20
-const TARGET_QPS = __ENV.TARGET_QPS ? parseInt(__ENV.TARGET_QPS) : 20;
+// 获取目标QPS参数，默认值为1（降低以避免服务器超时）
+const TARGET_QPS = __ENV.TARGET_QPS ? parseInt(__ENV.TARGET_QPS) : 1;
 
 // 生成随机UUID的函数 - 用于userId参数
 function generateRandomUUID() {
@@ -102,6 +109,11 @@ export default function (data) {
   
   const invitationRedeemResponse = http.post(invitationRedeemUrl, invitationRedeemPayload, invitationRedeemParams);
 
+  // 计算响应时间和状态用于指标记录
+  const responseTime = invitationRedeemResponse.timings.duration;
+  const isTimeout = responseTime >= 30000; // 30秒超时
+  const isSlowResponse = responseTime > 5000; // 超过5秒算慢响应
+
   // 检查邀请码兑换是否成功 - HTTP状态码200（业务失败也可能返回200）
   const isInvitationRedeemSuccess = check(invitationRedeemResponse, {
     'HTTP状态码200': (r) => r.status === 200,
@@ -117,8 +129,12 @@ export default function (data) {
   
   // 记录邀请码兑换指标 - HTTP200且响应格式正确即算成功（使用固定邀请码uSTbNld进行测试）
   invitationRedeemSuccessRate.add(isInvitationRedeemSuccess);
+  
+  // 记录超时和慢响应指标
+  timeoutRate.add(isTimeout);
+  slowResponseRate.add(isSlowResponse);
 
-  // 记录响应时间
+  // 记录响应时间（包括超时的请求）
   if (invitationRedeemResponse.status === 200) {
     invitationRedeemDuration.add(invitationRedeemResponse.timings.duration);
   }
