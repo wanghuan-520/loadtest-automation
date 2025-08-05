@@ -56,11 +56,11 @@ export default function (data) {
   // 构造邀请码兑换请求
   const invitationRedeemUrl = `${data.baseUrl}/godgpt/invitation/redeem`;
   
-  // 生成随机邀请码进行测试（实际环境中应该是有效的邀请码）
-  const randomInviteCode = `TEST_${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
+  // 使用固定邀请码进行测试
+  const fixedInviteCode = "uSTbNld";
   
   const invitationRedeemPayload = JSON.stringify({
-    inviteCode: randomInviteCode
+    inviteCode: fixedInviteCode
   });
   
   // 构造请求头 - 匹配curl命令，包含authorization token
@@ -101,7 +101,7 @@ export default function (data) {
     }
   });
   
-  // 记录邀请码兑换指标 - HTTP200且响应格式正确即算成功（由于使用随机邀请码，业务失败是预期的）
+  // 记录邀请码兑换指标 - HTTP200且响应格式正确即算成功（使用固定邀请码uSTbNld进行测试）
   invitationRedeemSuccessRate.add(isInvitationRedeemSuccess);
 
   // 记录响应时间
