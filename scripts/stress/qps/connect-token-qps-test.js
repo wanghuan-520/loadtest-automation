@@ -89,21 +89,21 @@ export default function () {
   
   const tokenResponse = http.post(tokenUrl, tokenPayload, tokenParams);
 
-  // 检查token获取是否成功 - HTTP状态码200 + 包含access_token
+  // 检查token获取是否成功 - HTTP状态码200 + 业务code为20000
   const isTokenSuccess = check(tokenResponse, {
     'HTTP状态码200': (r) => r.status === 200,
-    '响应包含access_token': (r) => {
+    '业务代码20000': (r) => {
       try {
         const data = JSON.parse(r.body);
-        return data.access_token !== undefined;
+        return data.code === "20000";
       } catch {
         return false;
       }
     },
-    '响应包含token_type': (r) => {
+    '响应包含access_token': (r) => {
       try {
         const data = JSON.parse(r.body);
-        return data.token_type !== undefined;
+        return data.access_token !== undefined;
       } catch {
         return false;
       }

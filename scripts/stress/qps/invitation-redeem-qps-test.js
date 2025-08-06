@@ -114,9 +114,17 @@ export default function (data) {
   const isTimeout = responseTime >= 30000; // 30秒超时
   const isSlowResponse = responseTime > 5000; // 超过5秒算慢响应
 
-  // 检查邀请码兑换是否成功 - HTTP状态码200（业务失败也可能返回200）
+  // 检查邀请码兑换是否成功 - HTTP状态码200 + 业务code为20000
   const isInvitationRedeemSuccess = check(invitationRedeemResponse, {
     'HTTP状态码200': (r) => r.status === 200,
+    '业务代码20000': (r) => {
+      try {
+        const data = JSON.parse(r.body);
+        return data.code === "20000";
+      } catch {
+        return false;
+      }
+    },
     '响应格式正确': (r) => {
       try {
         const data = JSON.parse(r.body);

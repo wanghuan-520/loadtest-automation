@@ -101,16 +101,15 @@ export default function (data) {
     }
   );
 
-  // 业务成功判断 - HTTP状态码200 + 业务code检查
+  // 业务成功判断 - HTTP状态码200 + 业务code为20000
   const isSuccess = check(showToastResponse, {
     'HTTP状态码200': (r) => r.status === 200,
-    '响应有效': (r) => {
+    '业务代码20000': (r) => {
       try {
         const data = JSON.parse(r.body);
-        // 根据实际API响应格式调整成功判断逻辑
-        return r.status === 200 && data !== null;
+        return data.code === "20000";
       } catch {
-        return r.status === 200;
+        return false;
       }
     }
   });

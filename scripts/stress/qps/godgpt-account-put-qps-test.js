@@ -128,10 +128,17 @@ export default function (data) {
     }
   );
 
-  // 优化版业务成功判断 - 减少JSON解析开销
+  // 业务成功判断 - HTTP状态码200 + 业务code为20000
   const isSuccess = check(accountResponse, {
     'HTTP状态码200': (r) => r.status === 200,
-    '响应格式正确': (r) => r.status === 200 && r.body && r.body.includes('"code"'),
+    '业务代码20000': (r) => {
+      try {
+        const data = JSON.parse(r.body);
+        return data.code === "20000";
+      } catch {
+        return false;
+      }
+    },
   });
   
   // 记录API调用指标

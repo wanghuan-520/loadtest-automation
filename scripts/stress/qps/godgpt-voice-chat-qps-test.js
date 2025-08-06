@@ -182,7 +182,7 @@ export default function (data) {
         
         // 尝试解析JSON响应
         const data = JSON.parse(r.body);
-        result = data.code === "20000" || data.success === true;
+        result = data.code === "20000";
       } catch {
         // 对于流式响应（text/event-stream），检查是否包含数据标识
         if (r.body) {
