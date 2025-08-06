@@ -141,8 +141,8 @@ export default function () {
     return;
   }
 
-  // 两个接口调用之间添加2秒延迟
-  sleep(2);
+  // 两个接口调用之间添加1秒延迟
+  sleep(1);
 
   // 步骤2：发送聊天消息
   const randomMessage = testData.messages[Math.floor(Math.random() * testData.messages.length)];
