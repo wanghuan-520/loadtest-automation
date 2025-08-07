@@ -20,6 +20,16 @@ const chatResponseRate = new Rate('chat_response_success_rate');
 const chatResponseDuration = new Trend('chat_response_duration');
 const createResponseDuration = new Trend('create_response_duration');
 
+// 生成随机UUID的函数 - 用于userId参数
+function generateRandomUUID() {
+  // 生成随机UUID格式：xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0;
+    const v = c == 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+}
+
 
 // 从配置文件加载环境配置和测试数据
 const config = JSON.parse(open('../../../config/env.dev.json'));
@@ -68,7 +78,8 @@ export default function (data) {
   // 步骤1: 创建会话
   const createSessionUrl = `${data.baseUrl}/godgpt/create-session`;
   const createSessionPayload = JSON.stringify({
-    guider: ''
+    guider: '',
+    userId: generateRandomUUID()  // 生成随机UUID格式的userId参数
   });
   
   // 构造已登录用户的create-session请求头
