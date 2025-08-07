@@ -75,11 +75,14 @@ export const options = {
 // 测试主函数
 export default function (data) {
   
+  // 生成一致的userId，确保create-session和chat使用相同的用户标识
+  const userId = generateRandomUUID();
+  
   // 步骤1: 创建会话
   const createSessionUrl = `${data.baseUrl}/godgpt/create-session`;
   const createSessionPayload = JSON.stringify({
     guider: '',
-    userId: generateRandomUUID()  // 生成随机UUID格式的userId参数
+    userId: userId  // 添加userId参数，与chat保持一致
   });
   
   // 构造已登录用户的create-session请求头
@@ -170,12 +173,13 @@ export default function (data) {
     'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36',
   };
   
-  // 使用已登录用户的chat请求体格式 - 包含sessionId
+  // 使用已登录用户的chat请求体格式 - 包含sessionId和userId
   const chatPayload = {
     content: randomMessage.content,
     images: [],
     region: "",
-    sessionId: sessionId
+    sessionId: sessionId,
+    userId: userId  // 添加userId参数，确保与create-session使用相同的用户标识
   };
   
   const chatParams = {
