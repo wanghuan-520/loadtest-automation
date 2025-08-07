@@ -1,5 +1,5 @@
 import http from 'k6/http';
-import { check } from 'k6';
+import { check, sleep } from 'k6';
 import { Rate, Trend } from 'k6/metrics';
 import { getAccessToken, setupTest, teardownTest } from '../../utils/auth.js';
 
@@ -134,6 +134,9 @@ export default function (data) {
   } catch (error) {
     return;
   }
+  
+  // 等待2秒 - 模拟用户思考时间
+  sleep(1);
   
   // 步骤2: 发送聊天消息
   const randomMessage = testData.messages[Math.floor(Math.random() * testData.messages.length)];
