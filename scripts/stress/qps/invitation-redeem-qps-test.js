@@ -82,33 +82,31 @@ function generateRandomUUID() {
   });
 }
 
-// 获取下一个用户的邮箱和邀请码
-// 修正逻辑：每个用户兑换自己的邀请码，每次请求使用不同的用户及其对应的邀请码
-function getNextUserAndInviteCode() {
+// 获取下一个不同的邀请码
+// 每次请求使用不同的邀请码，用户可以是任意的
+function getNextInviteCode() {
   const userEmails = Object.keys(userInvitationCodes);
   
   if (userEmails.length === 0) {
     return {
-      email: 'loadtestc1@teml.net',
       inviteCode: 'uSTbNld',
-      userId: 'loadtestc1'
+      userId: generateRandomUUID()
     };
   }
   
-  // 使用全局计数器确保每次请求使用不同的用户
+  // 使用全局计数器确保每次请求使用不同的邀请码
   const userIndex = (globalUserCounter++) % userEmails.length;
-  const userEmail = userEmails[userIndex];
-  const userInviteCode = userInvitationCodes[userEmail]; // 用户自己的邀请码
+  const sourceEmail = userEmails[userIndex];
+  const inviteCode = userInvitationCodes[sourceEmail];
   
-  // 从邮箱中提取用户ID部分作为userId（去掉@teml.net）
-  const userId = userEmail.replace('@teml.net', '');
+  // 生成随机userId用于兑换
+  const userId = generateRandomUUID();
   
-  console.log(`🔄 [请求${globalUserCounter}] 用户 ${userEmail} 兑换自己的邀请码: ${userInviteCode}`);
+  console.log(`🔄 [请求${globalUserCounter}] 兑换邀请码: ${inviteCode} (来源: ${sourceEmail}), 用户ID: ${userId}`);
   
   return {
-    email: userEmail,
-    inviteCode: userInviteCode, // 每个用户兑换自己的邀请码
-    userId: userId
+    inviteCode: inviteCode,  // 每次使用不同的邀请码
+    userId: userId          // 随机生成的用户ID
   };
 }
 
@@ -138,15 +136,15 @@ export const options = {
 export default function (data) {
   const startTime = Date.now();
   
-  // 获取下一个用户的信息：每个用户兑换自己的邀请码
-  const userInfo = getNextUserAndInviteCode();
+  // 获取下一个不同的邀请码用于兑换
+  const inviteInfo = getNextInviteCode();
   
   // 构造邀请码兑换请求
   const invitationRedeemUrl = `${data.baseUrl}/godgpt/invitation/redeem`;
   
   const invitationRedeemPayload = JSON.stringify({
-    inviteCode: userInfo.inviteCode,  // 用户自己的邀请码
-    userId: userInfo.userId          // 用户自己的ID
+    inviteCode: inviteInfo.inviteCode,  // 每次使用不同的邀请码
+    userId: inviteInfo.userId          // 随机生成的用户ID
   });
   
   // 构造请求头 - 匹配curl命令，包含authorization token
@@ -184,7 +182,7 @@ export default function (data) {
       
       // 简化日志：只记录关键信息
       if (!result) {
-        console.log(`❌ 接口无数据返回 - 用户: ${userInfo.email}, 邀请码: ${userInfo.inviteCode}, 状态码: ${r.status}, 数据长度: ${r.body ? r.body.length : 0}`);
+        console.log(`❌ 接口无数据返回 - 邀请码: ${inviteInfo.inviteCode}, 用户ID: ${inviteInfo.userId}, 状态码: ${r.status}, 数据长度: ${r.body ? r.body.length : 0}`);
       }
       
       return result;
