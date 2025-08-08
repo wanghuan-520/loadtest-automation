@@ -144,7 +144,7 @@ export default function (data) {
   
   const voiceChatParams = {
     headers: voiceChatHeaders,
-    timeout: '60s', // 语音聊天可能需要更长的超时时间
+    timeout: '120s', // 语音聊天调整为2分钟超时，适应AI处理时间
   };
 
   // 发送语音聊天请求 - 添加详细的错误处理
@@ -159,7 +159,7 @@ export default function (data) {
       console.error(`   错误信息: ${voiceChatResponse.error || '未知错误'}`);
       console.error(`   错误码: ${voiceChatResponse.error_code || 'N/A'}`);
       console.error(`   响应体: ${voiceChatResponse.body || '空'}`);
-      console.error(`   超时设置: 60s`);
+      console.error(`   超时设置: 120s`);
     }
   } catch (error) {
     console.error(`🔥 请求异常 [会话: ${sessionId.substring(0, 8)}...]: ${error.message || error}`);
