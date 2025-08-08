@@ -193,57 +193,20 @@ export default function (data) {
       checkResults['响应有内容'] = result;
       return result;
     },
-    '业务逻辑成功': (r) => {
-      let result = false;
-      try {
-        // 检查响应体是否存在
-        if (!r.body) {
-          result = r.status === 200;
-          checkResults['业务逻辑成功'] = result;
-          return result;
-        }
-        
-        // 尝试解析JSON响应
-        const data = JSON.parse(r.body);
-        result = data.code === "20000";
-      } catch {
-        // 对于流式响应（text/event-stream），检查是否包含有效的数据标识
-        if (r.body) {
-          const bodyStr = r.body.toString();
-          
-          // 检查Server-Sent Events (SSE) 格式的流式响应
-          const hasDataField = bodyStr.includes('data:');
-          const hasEventField = bodyStr.includes('event:');
-          
-          // 检查是否包含有效的数据内容（非空数据）
-          const hasValidData = /data:\s*(?!\s*$|\[DONE\]).+/m.test(bodyStr);
-          
-          // 检查是否有完整的流式响应结构
-          const hasStreamEnd = bodyStr.includes('[DONE]') || bodyStr.includes('data: [DONE]');
-          
-          // 流式响应成功的条件：
-          // 1. HTTP 200状态码
-          // 2. 包含data字段或event字段
-          // 3. 包含有效的非空数据内容
-          const isValidStream = r.status === 200 && (hasDataField || hasEventField) && hasValidData;
-          
-          // 如果是完整的流响应（包含结束标识），直接认为成功
-          const isCompleteStream = r.status === 200 && hasStreamEnd;
-          
-          result = isValidStream || isCompleteStream;
-          
-          // 调试日志：记录流式响应的检查结果
-          if (result) {
-            console.log(`✅ 流式响应成功 [会话: ${sessionId.substring(0, 8)}...]: hasData=${hasDataField}, hasEvent=${hasEventField}, hasValidData=${hasValidData}, hasEnd=${hasStreamEnd}`);
-          } else {
-            console.log(`❌ 流式响应失败 [会话: ${sessionId.substring(0, 8)}...]: 状态码=${r.status}, 响应体长度=${bodyStr.length}, hasData=${hasDataField}, hasValidData=${hasValidData}`);
-          }
-        } else {
-          // 如果没有响应体，仅根据状态码判断
-          result = r.status === 200;
-        }
-      }
+    '接口返回数据': (r) => {
+      // 成功率只看接口有没有返回数据，简单直接
+      const hasResponse = r.body && r.body.length > 0;
+      const result = r.status === 200 && hasResponse;
+      
       checkResults['业务逻辑成功'] = result;
+      
+      // 简化日志：只记录关键信息
+      if (result) {
+        console.log(`✅ 接口返回数据 [会话: ${sessionId.substring(0, 8)}...]: 状态码=${r.status}, 数据长度=${r.body.length}`);
+      } else {
+        console.log(`❌ 接口无数据返回 [会话: ${sessionId.substring(0, 8)}...]: 状态码=${r.status}, 数据长度=${r.body ? r.body.length : 0}`);
+      }
+      
       return result;
     }
   });
