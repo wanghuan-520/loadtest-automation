@@ -124,14 +124,13 @@ export default function (data) {
   
   // 构造请求头 - 参照curl示例和API文档格式
   const voiceChatHeaders = {
-    'accept': 'text/event-stream, text/event-stream', // 期望流式响应
-    'accept-language': `${FIXED_VOICE_LANGUAGE},zh-CN;q=0.9,zh;q=0.8`, // 固定语言设置
+    'accept': 'text/event-stream', // 期望流式响应 - 去掉重复
+    'accept-language': `zh-CN,zh;q=0.9,en;q=0.8`, // 修正语言设置格式
     'authorization': `Bearer ${data.bearerToken}`,
     'cache-control': 'no-cache', // 禁用缓存
     'content-type': 'application/json',
     'godgptlanguage': 'en', // 固定使用英语
     'origin': config.origin,
-    'priority': 'u=1, i',
     'referer': config.referer,
     'sec-ch-ua': '"Not)A;Brand";v="8", "Chromium";v="138", "Google Chrome";v="138"',
     'sec-ch-ua-mobile': '?0',
@@ -148,8 +147,30 @@ export default function (data) {
     timeout: '60s', // 语音聊天可能需要更长的超时时间
   };
 
-  // 发送语音聊天请求
-  const voiceChatResponse = http.post(voiceChatUrl, voiceChatPayload, voiceChatParams);
+  // 发送语音聊天请求 - 添加详细的错误处理
+  let voiceChatResponse;
+  try {
+    voiceChatResponse = http.post(voiceChatUrl, voiceChatPayload, voiceChatParams);
+    
+    // 如果状态码为0，记录详细的调试信息
+    if (voiceChatResponse.status === 0) {
+      console.error(`🔥 连接失败详情 [会话: ${sessionId.substring(0, 8)}...]:`);
+      console.error(`   URL: ${voiceChatUrl}`);
+      console.error(`   错误信息: ${voiceChatResponse.error || '未知错误'}`);
+      console.error(`   错误码: ${voiceChatResponse.error_code || 'N/A'}`);
+      console.error(`   响应体: ${voiceChatResponse.body || '空'}`);
+      console.error(`   超时设置: 60s`);
+    }
+  } catch (error) {
+    console.error(`🔥 请求异常 [会话: ${sessionId.substring(0, 8)}...]: ${error.message || error}`);
+    // 创建一个模拟的失败响应
+    voiceChatResponse = {
+      status: 0,
+      body: '',
+      error: error.message || error.toString(),
+      timings: { duration: 0 }
+    };
+  }
 
   // 检查语音聊天是否成功 - 针对流式响应进行优化验证
   const checkResults = {

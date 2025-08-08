@@ -1,19 +1,110 @@
 import http from 'k6/http';
 import { check } from 'k6';
 import { Rate, Trend } from 'k6/metrics';
+import { SharedArray } from 'k6/data';
+import { open } from 'k6';
 
 // 使用说明：
 // 默认目标QPS: 40 QPS（每秒40个请求，持续5分钟）
 // 自定义目标QPS: k6 run -e TARGET_QPS=60 connect-token-qps-test.js
 // 示例: k6 run -e TARGET_QPS=50 connect-token-qps-test.js
-// 注意: 使用固定的Google ID Token进行认证测试，无需额外环境变量
+// 自定义邮箱前缀: k6 run -e TARGET_QPS=10 -e EMAIL_PREFIX=mytest connect-token-qps-test.js
+// 注意: 邮箱范围根据QPS动态计算：QPS×300（5分钟测试时长）
 
 // 自定义指标
 const tokenRequestRate = new Rate('token_request_success_rate');
 const tokenResponseDuration = new Trend('token_response_duration');
 
-// 固定使用的Google ID Token (从OAuth 2.0 Playground获取的最新token)
-const FIXED_ID_TOKEN = 'eyJhbGciOiJSUzI1NiIsImtpZCI6ImJhNjNiNDM2ODM2YTkzOWI3OTViNDEyMmQzZjRkMGQyMjVkMWM3MDAiLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiJodHRwczovL2FjY291bnRzLmdvb2dsZS5jb20iLCJhenAiOiIxMzA0MTIxNTExNjctZTIybnB2MmZ0OHU2ZWhhNWpna25uMTVjcXIwbTc0dmcuYXBwcy5nb29nbGV1c2VyY29udGVudC5jb20iLCJhdWQiOiIxMzA0MTIxNTExNjctZTIybnB2MmZ0OHU2ZWhhNWpna25uMTVjcXIwbTc0dmcuYXBwcy5nb29nbGV1c2VyY29udGVudC5jb20iLCJzdWIiOiIxMTI5NjIyODM0OTM1ODA1MTU1MjEiLCJlbWFpbCI6Imh1YW4ud2FuZzUyMDUyMEBnbWFpbC5jb20iLCJlbWFpbF92ZXJpZmllZCI6dHJ1ZSwibm9uY2UiOiI4OGE4Mzg5NzE1YzBhYjgxZDZmNjgyMWNkOWQwMjgzNDZiYTYxODc1MzA3NThiYWQ2YmM1NDJhZjZiZjM4MGEzIiwibmJmIjoxNzU0MzY0OTQzLCJuYW1lIjoi546L54SVIiwicGljdHVyZSI6Imh0dHBzOi8vbGgzLmdvb2dsZXVzZXJjb250ZW50LmNvbS9hL0FDZzhvY0k5a0ZiZ2kwR0ViOVVINWFYY3pocG1KdHNIdVF5VklNRklKQlh0UGQ0Y0gyTl9iQT1zOTYtYyIsImdpdmVuX25hbWUiOiLnhJUiLCJmYW1pbHlfbmFtZSI6IueOiyIsImlhdCI6MTc1NDM2NTI0MywiZXhwIjoxNzU0MzY4ODQzLCJqdGkiOiJjNDI4MjAyNzkwN2RhZTdjYmZlOGE4N2JiODAwOTUzNzAyMWU0OTA2In0.RuMXtIBifypCTIZm75hpMNxHEPViQ2sKGel0hahuQ8Qb84Oj_ZlXZYheG9l0APYbBN6BtFAvUm-9OUvSFIW7T9HJFJbL4ldA2yiqbuJEAur5IrEmeA_inOxaqs4alPyLKiyXNaZTHp6scGSoWVNAvmg9mDdIsZ_eq1tLBnWFWPSQsL86xHYy4OrS-xfHM2gyAUdKZwcEuFvCPUIH3WP25qL7rXl7j7hzdMxtIjY2C--yOZM5eUrOHPzXV-fiLCm_8xoJD-LcjU1zj5opNt0fbtr1YQ-GtOCIt9OPRF-3dDH_5Y4h3bk7MlvYkbt2W8gXG7w6x-f8yq9YliPf2U0BHg';
+// 固定使用的密码
+const FIXED_PASSWORD = 'Wh520520!';
+
+// 获取目标QPS参数，默认值为40
+const TARGET_QPS = __ENV.TARGET_QPS ? parseInt(__ENV.TARGET_QPS) : 40;
+
+// 获取邮箱前缀参数，默认值为'loadtest'
+const EMAIL_PREFIX = __ENV.EMAIL_PREFIX || 'loadtest';
+
+// 根据目标QPS动态计算邮箱数量：QPS × 300秒（5分钟） 
+// 确保每个请求都有唯一的用户名
+const EMAIL_COUNT = TARGET_QPS * 300;
+
+// 性能优化：根据邮箱数量选择不同的生成策略
+const PERFORMANCE_THRESHOLD = 50000; // 超过5万个邮箱时启用性能优化模式
+
+// 动态生成邮箱列表，根据QPS计算所需数量，自动优化性能
+const EMAIL_LIST = new SharedArray('emails', function () {
+  console.log(`🎯 目标QPS: ${TARGET_QPS}`);
+  console.log(`📧 邮箱前缀: ${EMAIL_PREFIX}`);
+  console.log(`📊 计算邮箱数量: ${TARGET_QPS} QPS × 300秒 = ${EMAIL_COUNT} 个邮箱`);
+  
+  // 性能检查和优化提示
+  if (EMAIL_COUNT > PERFORMANCE_THRESHOLD) {
+    console.log(`⚠️ 邮箱数量较大(${EMAIL_COUNT})，可能影响启动性能`);
+    console.log(`💡 建议：考虑降低QPS或缩短测试时间以提升性能`);
+  }
+  
+  // 记录开始时间，监控生成性能
+  const startTime = Date.now();
+  const generatedEmails = [];
+  
+  // 使用批量生成优化性能
+  if (EMAIL_COUNT > PERFORMANCE_THRESHOLD) {
+    // 大数量时：仅创建配置对象，邮箱将在运行时计算生成
+    console.log(`🚀 启用高性能模式：运行时计算生成邮箱，避免大数组占用内存`);
+    console.log(`📊 将在测试运行时动态计算 ${EMAIL_PREFIX}1@teml.net ~ ${EMAIL_PREFIX}${EMAIL_COUNT}@teml.net`);
+    
+    // 返回配置信息而非大数组，节省内存
+    return {
+      mode: 'computed',
+      prefix: EMAIL_PREFIX,
+      count: EMAIL_COUNT,
+      // 为了兼容.length属性，添加length getter
+      get length() { return EMAIL_COUNT; }
+    };
+  } else {
+    // 小数量时：预生成数组（更快的数组访问）
+    console.log(`📝 常规模式：预生成${EMAIL_COUNT}个邮箱到内存`);
+    for (let i = 1; i <= EMAIL_COUNT; i++) {
+      generatedEmails.push(`${EMAIL_PREFIX}${i}@teml.net`);
+    }
+    const endTime = Date.now();
+    const generationTime = endTime - startTime;
+    
+    console.log(`✅ 预生成邮箱列表: ${EMAIL_PREFIX}1@teml.net ~ ${EMAIL_PREFIX}${EMAIL_COUNT}@teml.net`);
+    console.log(`📈 总计 ${generatedEmails.length} 个唯一测试邮箱`);
+    console.log(`⏱️ 邮箱生成耗时: ${generationTime}ms`);
+    console.log(`💾 预估内存使用: ${(generatedEmails.length * 30 / 1024 / 1024).toFixed(2)}MB`);
+    
+    return generatedEmails;
+  }
+});
+
+// 每个VU的独立邮箱计数器，确保真正的唯一性
+// 基于VU ID和迭代次数生成唯一邮箱索引
+function getNextEmail() {
+  // k6的内置变量：__VU (虚拟用户ID) 和 __ITER (当前迭代次数)
+  const vuId = __VU || 1;  // VU ID从1开始
+  const iterNum = __ITER || 0;  // 迭代次数从0开始
+  
+  // 生成真正唯一的邮箱索引：基于VU ID和迭代次数
+  // 每个VU使用不同的起始位置，避免重复
+  const uniqueIndex = (vuId - 1) * 1000 + iterNum;
+  
+  // 检查EMAIL_LIST是配置对象还是数组
+  if (EMAIL_LIST.mode === 'computed') {
+    // 高性能模式：直接计算邮箱名
+    const emailNumber = (uniqueIndex % EMAIL_LIST.count) + 1;
+    const email = `${EMAIL_LIST.prefix}${emailNumber}@teml.net`;
+    console.log(`🔄 VU${vuId}-第${iterNum}次 使用邮箱: ${email}`);
+    return email;
+  } else {
+    // 常规模式：使用预生成的数组
+    const emailIndex = uniqueIndex % EMAIL_LIST.length;
+    const email = EMAIL_LIST[emailIndex];
+    console.log(`🔄 VU${vuId}-第${iterNum}次 使用邮箱: ${email}`);
+    return email;
+  }
+}
 
 // 环境配置 - 基于curl命令更新
 const config = {
@@ -21,9 +112,6 @@ const config = {
   origin: 'https://godgpt-ui-dev.aelf.dev',
   referer: 'https://godgpt-ui-dev.aelf.dev/'
 };
-
-// 获取目标QPS参数，默认值为40
-const TARGET_QPS = __ENV.TARGET_QPS ? parseInt(__ENV.TARGET_QPS) : 40;
 
 // 固定QPS压力测试场景配置
 export const options = {
@@ -54,23 +142,28 @@ export default function () {
   // 构造token获取请求
   const tokenUrl = `${config.baseUrl}/connect/token`;
   
-  // 构造请求体 - Google authentication flow (基于curl命令)
+  // 为每个请求获取唯一邮箱
+  const currentEmail = getNextEmail();
+  
+  // 构造请求体 - Password authentication flow (基于curl命令)
   // k6不支持URLSearchParams，手动构建form-urlencoded字符串
   const tokenPayload = [
-    'grant_type=google',
+    'grant_type=password',
     'client_id=AevatarAuthServer',
     'apple_app_id=com.gpt.god',
     'scope=Aevatar%20offline_access',
-    'source=web',
-    `id_token=${encodeURIComponent(FIXED_ID_TOKEN)}`
+    `username=${encodeURIComponent(currentEmail)}`,
+    `password=${encodeURIComponent(FIXED_PASSWORD)}`
   ].join('&');
   
   // 构造请求头 - 基于curl命令优化
   const tokenHeaders = {
     'accept': 'application/json',
     'accept-language': 'en,zh-CN;q=0.9,zh;q=0.8',
+    'cache-control': 'no-cache',
     'content-type': 'application/x-www-form-urlencoded',
     'origin': config.origin,
+    'pragma': 'no-cache',
     'priority': 'u=1, i',
     'referer': config.referer,
     'sec-ch-ua': '"Not)A;Brand";v="8", "Chromium";v="138", "Google Chrome";v="138"',
@@ -126,9 +219,12 @@ export function setup() {
   console.log(`🔧 测试场景: 固定QPS测试 (${TARGET_QPS} QPS，持续5分钟)`);
   console.log(`⚡ 目标QPS: ${TARGET_QPS} (可通过 TARGET_QPS 环境变量配置)`);
   console.log(`🔄 预估总请求数: ${TARGET_QPS * 300} 个 (${TARGET_QPS} QPS × 300秒)`);
-  console.log('🔑 测试内容: Google ID Token认证');
+  console.log('🔑 测试内容: 用户名密码认证');
   console.log('⏱️  预计测试时间: 5分钟');
-  console.log('🌐 认证方式: 使用固定的Google ID Token进行认证测试');
+  console.log('🌐 认证方式: 使用用户名密码进行认证测试');
+  console.log(`📧 邮箱范围: ${EMAIL_PREFIX}1@teml.net ~ ${EMAIL_PREFIX}${EMAIL_COUNT}@teml.net`);
+  console.log(`🔢 邮箱总数: ${EMAIL_LIST.length} 个唯一测试邮箱`);
+  console.log('🔄 用户选择: 每次请求顺序选择不同邮箱，确保唯一性');
   
   return { baseUrl: config.baseUrl };
 }
@@ -138,6 +234,6 @@ export function teardown(data) {
   const endTime = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
   console.log('✅ connect/token 固定QPS压力测试完成');
   console.log(`🕛 测试结束时间: ${endTime}`);
-  console.log('🔍 关键指标：Google认证成功率、响应时间、QPS稳定性');
+  console.log('🔍 关键指标：用户名密码认证成功率、响应时间、QPS稳定性');
   console.log('📈 请分析QPS是否稳定、响应时间分布和系统资源使用情况');
 }

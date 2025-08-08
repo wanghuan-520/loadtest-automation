@@ -223,15 +223,11 @@ k6 run session-rename-qps-test.js
 
 
 P0:
-k6 run -e TARGET_QPS=1 scripts/stress/qps/guest-create-session-qps-test.js
 k6 run -e TARGET_QPS=1 scripts/stress/qps/guest-chat-qps-test.js
-
-
-k6 run -e TARGET_QPS=10 scripts/stress/qps/user-create-session-qps-test.js
 k6 run -e TARGET_QPS=1 scripts/stress/qps/user-chat-qps-test.js
 
-
-k6 run --duration 10m -e TARGET_QPS=60 guest-create-session-qps-test.js
+k6 run -e TARGET_QPS=10 scripts/stress/qps/guest-create-session-qps-test.js
+k6 run -e TARGET_QPS=10 scripts/stress/qps/user-session-info-qps-test.js
 
 
 
@@ -247,7 +243,7 @@ k6 run -e TARGET_QPS=1 scripts/stress/qps/godgpt-account-show-toast-qps-test.js
 k6 run -e TARGET_QPS=1 scripts/stress/qps/user-session-info-qps-test.js
 k6 run -e TARGET_QPS=1 scripts/stress/qps/payment-list-qps-test.js
 k6 run -e TARGET_QPS=1 scripts/stress/qps/payment-apple-subscription-qps-test.js
-k6 run -e TARGET_QPS=10 -e EMAIL_PREFIX=loadtestc scripts/stress/qps/connect-token-qps-test.js
+k6 run -e TARGET_QPS=1 scripts/stress/qps/connect-token-qps-test.js
 
 k6 run -e TARGET_QPS=1 scripts/stress/qps/godgpt-account-put-qps-test.js
 k6 run -e TARGET_QPS=1 scripts/stress/qps/godgpt-voice-chat-qps-test.js
@@ -257,6 +253,8 @@ k6 run -e TARGET_QPS=1 scripts/stress/qps/invitation-redeem-qps-test.js
 
 
 
+测试数据：
+k6 run -e TARGET_QPS=3 -e DEBUG=true godgpt-register-qps-test.js
 
 
 

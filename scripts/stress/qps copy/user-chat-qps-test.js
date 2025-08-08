@@ -1,5 +1,5 @@
 import http from 'k6/http';
-import { check, sleep } from 'k6';
+import { check } from 'k6';
 import { Rate, Trend } from 'k6/metrics';
 import { getAccessToken, setupTest, teardownTest } from '../../utils/auth.js';
 
@@ -9,9 +9,9 @@ import { getAccessToken, setupTest, teardownTest } from '../../utils/auth.js';
 // 示例: k6 run -e TARGET_QPS=25 user-chat-qps-test.js
 //
 // 🔧 性能优化说明：
-// - maxVUs: TARGET_QPS * 5 (最少10个) - 避免VU数量过多导致系统过载
-// - preAllocatedVUs: TARGET_QPS * 3 (最少3个) - 考虑长响应时间的VU占用
-// - 超时时间: 30秒 - 平衡响应等待和VU占用时间
+// - maxVUs: TARGET_QPS * 10 (最少20个) - 用户聊天流程复杂，需要更多VU
+// - preAllocatedVUs: TARGET_QPS * 2 (最少5个) - 预分配足够VU避免延迟
+// - 超时时间: 60秒 - 适应SSE流式响应的较长处理时间
 // - SSE响应检查: 兼容JSON和流式响应格式
 
 // 自定义指标
@@ -19,16 +19,6 @@ const sessionCreationRate = new Rate('session_creation_success_rate');
 const chatResponseRate = new Rate('chat_response_success_rate');
 const chatResponseDuration = new Trend('chat_response_duration');
 const createResponseDuration = new Trend('create_response_duration');
-
-// 生成随机UUID的函数 - 用于userId参数
-function generateRandomUUID() {
-  // 生成随机UUID格式：xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-    const r = Math.random() * 16 | 0;
-    const v = c == 'x' ? r : (r & 0x3 | 0x8);
-    return v.toString(16);
-  });
-}
 
 
 // 从配置文件加载环境配置和测试数据
@@ -57,8 +47,8 @@ export const options = {
       rate: TARGET_QPS,              // 每秒请求数（QPS）
       timeUnit: '1s',                // 时间单位：1秒
       duration: '5m',                // 测试持续时间：5分钟
-      preAllocatedVUs: Math.max(TARGET_QPS * 3, 3),  // 预分配VU数量（考虑长响应时间，增加到3倍）
-      maxVUs: Math.max(TARGET_QPS * 5, 10),         // 最大VU数量（降低倍数，避免VU暴涨）
+      preAllocatedVUs: Math.max(TARGET_QPS * 2, 5),  // 预分配VU数量（至少为QPS的2倍，最少5个）
+      maxVUs: Math.max(TARGET_QPS * 10, 20),        // 最大VU数量（用户聊天需要更多VU处理复杂流程）
       tags: { test_type: 'fixed_qps_user_chat' },
     },
   },
@@ -75,14 +65,10 @@ export const options = {
 // 测试主函数
 export default function (data) {
   
-  // 生成一致的userId，确保create-session和chat使用相同的用户标识
-  const userId = generateRandomUUID();
-  
   // 步骤1: 创建会话
   const createSessionUrl = `${data.baseUrl}/godgpt/create-session`;
   const createSessionPayload = JSON.stringify({
-    guider: '',
-    userId: userId  // 添加userId参数，与chat保持一致
+    guider: ''
   });
   
   // 构造已登录用户的create-session请求头
@@ -105,7 +91,7 @@ export default function (data) {
   
   const createSessionParams = {
     headers: sessionHeaders,
-    timeout: '30s',  // 降低超时时间，避免长时间占用VU
+    timeout: '60s',  // 增加超时时间到60秒
   };
   
   const createSessionResponse = http.post(createSessionUrl, createSessionPayload, createSessionParams);
@@ -149,9 +135,6 @@ export default function (data) {
     return;
   }
   
-  // 等待2秒 - 模拟用户思考时间
-  sleep(1);
-  
   // 步骤2: 发送聊天消息
   const randomMessage = testData.messages[Math.floor(Math.random() * testData.messages.length)];
   
@@ -173,18 +156,17 @@ export default function (data) {
     'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36',
   };
   
-  // 使用已登录用户的chat请求体格式 - 包含sessionId和userId
+  // 使用已登录用户的chat请求体格式 - 包含sessionId
   const chatPayload = {
     content: randomMessage.content,
     images: [],
     region: "",
-    sessionId: sessionId,
-    userId: userId  // 添加userId参数，确保与create-session使用相同的用户标识
+    sessionId: sessionId
   };
   
   const chatParams = {
     headers: chatHeaders,
-    timeout: '30s',  // 降低聊天超时时间，避免长时间占用VU
+    timeout: '60s',  // 增加聊天超时时间到60秒
   };
   
   const chatResponse = http.post(`${data.baseUrl}/gotgpt/chat`, JSON.stringify(chatPayload), chatParams);
