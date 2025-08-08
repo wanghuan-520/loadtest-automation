@@ -36,21 +36,41 @@ try {
   console.log('⚠️  未找到tokens.json配置文件，将使用环境变量或默认token');
 }
 
-// 加载邀请码数据 - 支持多种数据源
-let invitationCodes = [];
+// 加载用户邀请码映射数据 - 每个用户对应其自己的邀请码
+let userInvitationCodes = {};
 try {
   // 优先从环境变量指定的文件加载
-  const inviteCodesFile = __ENV.INVITE_CODES_FILE || '../../../results/loadtestc_invite_codes_for_k6_latest.json';
-  invitationCodes = JSON.parse(open(inviteCodesFile));
-  console.log(`✅ 成功加载 ${invitationCodes.length} 个邀请码`);
+  const inviteCodesFile = __ENV.INVITE_CODES_FILE || '../../../results/loadtestc_invitation_codes_latest.json';
+  const rawData = JSON.parse(open(inviteCodesFile));
+  
+  // 如果是旧格式的数组，转换为用户映射格式
+  if (Array.isArray(rawData)) {
+    console.log('⚠️  检测到旧格式邀请码数据，将使用随机分配模式');
+    // 为了兼容，创建一个简单的映射
+    rawData.forEach((code, index) => {
+      userInvitationCodes[`loadtestc${index + 1}@teml.net`] = code;
+    });
+  } else {
+    // 新格式：直接使用用户邮箱到邀请码的映射
+    userInvitationCodes = rawData;
+  }
+  
+  console.log(`✅ 成功加载 ${Object.keys(userInvitationCodes).length} 个用户的邀请码映射`);
 } catch (error) {
   console.log('⚠️  未找到邀请码数据文件，将使用默认邀请码');
-  // 回退使用默认邀请码列表
-  invitationCodes = ["uSTbNld", "default1", "default2"];
+  // 回退使用默认邀请码映射
+  userInvitationCodes = {
+    'loadtestc1@teml.net': 'uSTbNld',
+    'loadtestc2@teml.net': 'default1',
+    'loadtestc3@teml.net': 'default2'
+  };
 }
 
 // 获取目标QPS参数，默认值为1（降低以避免服务器超时）
 const TARGET_QPS = __ENV.TARGET_QPS ? parseInt(__ENV.TARGET_QPS) : 1;
+
+// 全局用户计数器，确保每次请求使用不同的用户
+let globalUserCounter = 0;
 
 // 生成随机UUID的函数 - 用于userId参数
 function generateRandomUUID() {
@@ -62,13 +82,33 @@ function generateRandomUUID() {
   });
 }
 
-// 随机选择邀请码的函数
-function getRandomInviteCode() {
-  if (invitationCodes.length === 0) {
-    return "uSTbNld"; // 回退到默认邀请码
+// 获取下一个用户的邮箱和邀请码
+function getNextUserAndInviteCode() {
+  const userEmails = Object.keys(userInvitationCodes);
+  
+  if (userEmails.length === 0) {
+    return {
+      email: 'loadtestc1@teml.net',
+      inviteCode: 'uSTbNld',
+      userId: generateRandomUUID()
+    };
   }
-  const randomIndex = Math.floor(Math.random() * invitationCodes.length);
-  return invitationCodes[randomIndex];
+  
+  // 使用全局计数器确保每次请求使用不同的用户
+  const userIndex = (globalUserCounter++) % userEmails.length;
+  const userEmail = userEmails[userIndex];
+  const inviteCode = userInvitationCodes[userEmail];
+  
+  // 从邮箱中提取用户ID部分作为userId（去掉@teml.net）
+  const userId = userEmail.replace('@teml.net', '');
+  
+  console.log(`🔄 [请求${globalUserCounter}] 使用用户: ${userEmail}, 邀请码: ${inviteCode}, 用户ID: ${userId}`);
+  
+  return {
+    email: userEmail,
+    inviteCode: inviteCode,
+    userId: userId
+  };
 }
 
 // 固定QPS压力测试场景配置
@@ -97,18 +137,15 @@ export const options = {
 export default function (data) {
   const startTime = Date.now();
   
-  // 生成随机userId
-  const userId = generateRandomUUID();
+  // 获取下一个用户的邮箱、邀请码和用户ID
+  const userInfo = getNextUserAndInviteCode();
   
   // 构造邀请码兑换请求
   const invitationRedeemUrl = `${data.baseUrl}/godgpt/invitation/redeem`;
   
-  // 随机选择邀请码进行测试，并添加userId参数
-  const randomInviteCode = getRandomInviteCode();
-  
   const invitationRedeemPayload = JSON.stringify({
-    inviteCode: randomInviteCode,
-    userId: userId  // 添加随机生成的userId参数
+    inviteCode: userInfo.inviteCode,
+    userId: userInfo.userId  // 使用对应用户的ID
   });
   
   // 构造请求头 - 匹配curl命令，包含authorization token
@@ -145,10 +182,8 @@ export default function (data) {
       const result = r.status === 200 && hasResponse;
       
       // 简化日志：只记录关键信息
-      if (result) {
-        console.log(`✅ 接口返回数据 - 邀请码: ${randomInviteCode}, 状态码: ${r.status}, 数据长度: ${r.body.length}`);
-      } else {
-        console.log(`❌ 接口无数据返回 - 邀请码: ${randomInviteCode}, 状态码: ${r.status}, 数据长度: ${r.body ? r.body.length : 0}`);
+      if (!result) {
+        console.log(`❌ 接口无数据返回 - 用户: ${userInfo.email}, 邀请码: ${userInfo.inviteCode}, 状态码: ${r.status}, 数据长度: ${r.body ? r.body.length : 0}`);
       }
       
       return result;
