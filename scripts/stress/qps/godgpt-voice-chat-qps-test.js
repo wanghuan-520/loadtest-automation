@@ -101,8 +101,8 @@ export default function (data) {
   // 生成随机userId
   const userId = generateRandomUUID();
   
-  // 步骤1: 使用固定的会话ID - 为稳定性测试固定sessionId
-  const sessionId = "56918827-3851-44e7-a32e-27d06696da8f";
+  // 步骤1: 生成随机会话ID - 每次请求使用不同的sessionId
+  const sessionId = generateRandomUUID();
   
   // 步骤2: 构造语音聊天请求
   const voiceChatUrl = `${data.baseUrl}/godgpt/voice/chat`;
