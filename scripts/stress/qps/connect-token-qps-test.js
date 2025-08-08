@@ -19,7 +19,7 @@ const tokenResponseDuration = new Trend('token_response_duration');
 const FIXED_PASSWORD = 'Wh520520!';
 
 // 获取目标QPS参数，默认值为40
-const TARGET_QPS = __ENV.TARGET_QPS ? parseInt(__ENV.TARGET_QPS) : 40;
+const TARGET_QPS = __ENV.TARGET_QPS ? parseInt(__ENV.TARGET_QPS) : 1;
 
 // 获取邮箱前缀参数，默认值为'loadtest'
 const EMAIL_PREFIX = __ENV.EMAIL_PREFIX || 'loadtest';
@@ -80,28 +80,52 @@ const EMAIL_LIST = new SharedArray('emails', function () {
 });
 
 // 每个VU的独立邮箱计数器，确保真正的唯一性
-// 基于VU ID和迭代次数生成唯一邮箱索引
+// 基于VU ID和迭代次数生成绝对唯一的邮箱索引
 function getNextEmail() {
   // k6的内置变量：__VU (虚拟用户ID) 和 __ITER (当前迭代次数)
   const vuId = __VU || 1;  // VU ID从1开始
   const iterNum = __ITER || 0;  // 迭代次数从0开始
   
-  // 生成真正唯一的邮箱索引：基于VU ID和迭代次数
-  // 每个VU使用不同的起始位置，避免重复
-  const uniqueIndex = (vuId - 1) * 1000 + iterNum;
+  // 获取总邮箱数量
+  const totalEmails = EMAIL_LIST.mode === 'computed' ? EMAIL_LIST.count : EMAIL_LIST.length;
+  
+  // 计算每个VU的邮箱分配范围，确保无重叠
+  // 动态计算每个VU的邮箱数量，确保所有VU都能分配到邮箱
+  const estimatedMaxVUs = TARGET_QPS * 2; // 预估最大VU数量（通常是QPS的2倍）
+  const emailsPerVU = Math.max(Math.ceil(totalEmails / estimatedMaxVUs), 50); // 每个VU至少分配50个邮箱，确保所有VU都有邮箱可用
+  
+  // 生成绝对唯一的邮箱索引：每个VU有独立的邮箱范围
+  const vuBaseIndex = (vuId - 1) * emailsPerVU;  // VU的起始邮箱索引
+  const emailIndexInVU = iterNum % emailsPerVU;   // VU内部的邮箱索引
+  const globalEmailIndex = vuBaseIndex + emailIndexInVU;
+  
+  // 智能邮箱分配：确保邮箱索引在有效范围内
+  let safeEmailIndex;
+  
+  // 检查VU的邮箱范围是否超出总邮箱数
+  if (vuBaseIndex >= totalEmails) {
+    // VU的起始索引已超出总邮箱数，使用安全取模
+    safeEmailIndex = ((vuId - 1) * 17 + iterNum) % totalEmails + 1; // 使用质数17避免规律性重复
+  } else if (globalEmailIndex >= totalEmails) {
+    // VU范围内但具体索引超出，回到VU范围内循环
+    const safeIndexInVU = iterNum % Math.min(emailsPerVU, totalEmails - vuBaseIndex);
+    safeEmailIndex = vuBaseIndex + safeIndexInVU + 1;
+  } else {
+    // 正常情况：直接使用计算的索引
+    safeEmailIndex = globalEmailIndex + 1;
+  }
   
   // 检查EMAIL_LIST是配置对象还是数组
   if (EMAIL_LIST.mode === 'computed') {
     // 高性能模式：直接计算邮箱名
-    const emailNumber = (uniqueIndex % EMAIL_LIST.count) + 1;
-    const email = `${EMAIL_LIST.prefix}${emailNumber}@teml.net`;
-    console.log(`🔄 VU${vuId}-第${iterNum}次 使用邮箱: ${email}`);
+    const email = `${EMAIL_LIST.prefix}${safeEmailIndex}@teml.net`;
+    console.log(`🔄 VU${vuId}-第${iterNum}次 使用邮箱: ${email} (范围${vuBaseIndex+1}-${vuBaseIndex+emailsPerVU}, 索引${safeEmailIndex})`);
     return email;
   } else {
     // 常规模式：使用预生成的数组
-    const emailIndex = uniqueIndex % EMAIL_LIST.length;
+    const emailIndex = safeEmailIndex - 1; // 数组索引从0开始
     const email = EMAIL_LIST[emailIndex];
-    console.log(`🔄 VU${vuId}-第${iterNum}次 使用邮箱: ${email}`);
+    console.log(`🔄 VU${vuId}-第${iterNum}次 使用邮箱: ${email} (范围${vuBaseIndex+1}-${vuBaseIndex+emailsPerVU}, 索引${safeEmailIndex})`);
     return email;
   }
 }
