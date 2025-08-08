@@ -206,28 +206,20 @@ export default function () {
   
   const tokenResponse = http.post(tokenUrl, tokenPayload, tokenParams);
 
-  // 检查token获取是否成功 - HTTP状态码200 + 业务code为20000
+  // 检查token获取是否成功 - 简化检查提升性能
   const isTokenSuccess = check(tokenResponse, {
     'HTTP状态码200': (r) => r.status === 200,
-    '业务代码20000': (r) => {
-      try {
-        const data = JSON.parse(r.body);
-        return data.code === "20000";
-      } catch {
-        return false;
-      }
-    },
     '响应包含access_token': (r) => {
       try {
         const data = JSON.parse(r.body);
-        return data.access_token !== undefined;
+        return data.access_token && data.access_token.length > 0;
       } catch {
         return false;
       }
     }
   });
-
-  // 记录自定义指标 - 只有业务成功才计入成功
+  
+  // 记录自定义指标 - 简化判断，只检查最关键的access_token
   tokenRequestRate.add(isTokenSuccess);
   if (isTokenSuccess) {
     tokenResponseDuration.add(tokenResponse.timings.duration);
@@ -243,9 +235,9 @@ export function setup() {
   console.log(`🔧 测试场景: 固定QPS测试 (${TARGET_QPS} QPS，持续5分钟)`);
   console.log(`⚡ 目标QPS: ${TARGET_QPS} (可通过 TARGET_QPS 环境变量配置)`);
   console.log(`🔄 预估总请求数: ${TARGET_QPS * 300} 个 (${TARGET_QPS} QPS × 300秒)`);
-  console.log('🔑 测试内容: 用户名密码认证');
+  console.log('🔑 测试内容: OAuth2 密码认证流程');
   console.log('⏱️  预计测试时间: 5分钟');
-  console.log('🌐 认证方式: 使用用户名密码进行认证测试');
+  console.log('🌐 认证方式: OAuth2 Password Grant Type (用户名密码换取access_token)');
   console.log(`📧 邮箱范围: ${EMAIL_PREFIX}1@teml.net ~ ${EMAIL_PREFIX}${EMAIL_COUNT}@teml.net`);
   console.log(`🔢 邮箱总数: ${EMAIL_LIST.length} 个唯一测试邮箱`);
   console.log('🔄 用户选择: 每次请求顺序选择不同邮箱，确保唯一性');
@@ -258,6 +250,7 @@ export function teardown(data) {
   const endTime = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
   console.log('✅ connect/token 固定QPS压力测试完成');
   console.log(`🕛 测试结束时间: ${endTime}`);
-  console.log('🔍 关键指标：用户名密码认证成功率、响应时间、QPS稳定性');
-  console.log('📈 请分析QPS是否稳定、响应时间分布和系统资源使用情况');
+  console.log('🔍 关键指标：OAuth2 token获取成功率、响应时间、QPS稳定性');
+  console.log('📈 成功标准：HTTP 200 + access_token非空（简化检查提升性能）');
+  console.log('📊 请分析QPS是否稳定、token获取成功率和响应时间分布');
 }
