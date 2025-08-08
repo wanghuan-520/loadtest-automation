@@ -6,13 +6,13 @@ import { getAccessToken, setupTest, teardownTest } from '../../utils/auth.js';
 // 使用说明：
 // 默认目标QPS: 1 QPS（每秒1个请求，持续5分钟）
 // 自定义目标QPS: k6 run -e TARGET_QPS=5 invitation-redeem-qps-test.js
-// 自定义邀请码文件: k6 run -e INVITE_CODES_FILE=../../../results/my_invite_codes.json invitation-redeem-qps-test.js
-// 完整示例: k6 run -e TARGET_QPS=10 -e INVITE_CODES_FILE=../../../results/loadtestc_invite_codes_for_k6_20250808_123456.json invitation-redeem-qps-test.js
+// 自定义邀请码文件: k6 run -e INVITE_CODES_FILE=../data/my_invite_codes.json invitation-redeem-qps-test.js
+// 完整示例: k6 run -e TARGET_QPS=10 -e INVITE_CODES_FILE=../data/loadtest_invite_codes.json invitation-redeem-qps-test.js
 // 
-// 📋 邀请码数据准备：
-// 1. 运行: python3 get_invitation_codes.py --start 1 --count 1000
-// 2. 脚本会生成: results/loadtestc_invite_codes_for_k6_TIMESTAMP.json
-// 3. 可选择创建软链接: ln -sf loadtestc_invite_codes_for_k6_TIMESTAMP.json loadtestc_invite_codes_for_k6_latest.json
+// 📋 邀请码数据来源：
+// 1. 默认使用: scripts/stress/data/loadtest_invite_codes.json (包含约9000个邀请码)
+// 2. 或运行: python3 get_invitation_codes.py --start 1 --count 1000 生成新的邀请码
+// 3. 支持数组格式 ["code1", "code2"] 或对象格式 {"user1@email.com": "code1"}
 // 
 // ⚠️  压测注意事项：
 // - 如果出现大量超时(>30s)，说明服务器压力过大，建议降低QPS
@@ -36,41 +36,35 @@ try {
   console.log('⚠️  未找到tokens.json配置文件，将使用环境变量或默认token');
 }
 
-// 加载用户邀请码映射数据 - 每个用户对应其自己的邀请码
-let userInvitationCodes = {};
+// 加载邀请码数据列表
+let invitationCodes = [];
 try {
-  // 优先从环境变量指定的文件加载
-  const inviteCodesFile = __ENV.INVITE_CODES_FILE || '../../../results/loadtestc_invitation_codes_latest.json';
+  // 优先从环境变量指定的文件加载，默认使用data目录下的邀请码文件
+  const inviteCodesFile = __ENV.INVITE_CODES_FILE || '../data/loadtest_invite_codes.json';
   const rawData = JSON.parse(open(inviteCodesFile));
   
-  // 如果是旧格式的数组，转换为用户映射格式
+  // 如果是数组格式，直接使用
   if (Array.isArray(rawData)) {
-    console.log('⚠️  检测到旧格式邀请码数据，将使用随机分配模式');
-    // 为了兼容，创建一个简单的映射
-    rawData.forEach((code, index) => {
-      userInvitationCodes[`loadtestc${index + 1}@teml.net`] = code;
-    });
+    invitationCodes = rawData;
+    console.log(`✅ 成功加载 ${invitationCodes.length} 个邀请码`);
+  } else if (typeof rawData === 'object') {
+    // 如果是对象格式（用户邮箱映射），提取所有邀请码
+    invitationCodes = Object.values(rawData);
+    console.log(`✅ 从用户映射中提取 ${invitationCodes.length} 个邀请码`);
   } else {
-    // 新格式：直接使用用户邮箱到邀请码的映射
-    userInvitationCodes = rawData;
+    throw new Error('不支持的邀请码数据格式');
   }
-  
-  console.log(`✅ 成功加载 ${Object.keys(userInvitationCodes).length} 个用户的邀请码映射`);
 } catch (error) {
-  console.log('⚠️  未找到邀请码数据文件，将使用默认邀请码');
-  // 回退使用默认邀请码映射
-  userInvitationCodes = {
-    'loadtestc1@teml.net': 'uSTbNld',
-    'loadtestc2@teml.net': 'default1',
-    'loadtestc3@teml.net': 'default2'
-  };
+  console.log(`⚠️  未找到邀请码数据文件: ${error.message}，将使用默认邀请码`);
+  // 回退使用默认邀请码列表
+  invitationCodes = ['uSTbNld', 'default1', 'default2'];
 }
 
 // 获取目标QPS参数，默认值为1（降低以避免服务器超时）
 const TARGET_QPS = __ENV.TARGET_QPS ? parseInt(__ENV.TARGET_QPS) : 1;
 
-// 全局用户计数器，确保每次请求使用不同的用户
-let globalUserCounter = 0;
+// 全局邀请码计数器，确保每次请求使用不同的邀请码
+let globalInviteCodeCounter = 0;
 
 // 生成随机UUID的函数 - 用于userId参数
 function generateRandomUUID() {
@@ -85,9 +79,7 @@ function generateRandomUUID() {
 // 获取下一个不同的邀请码
 // 每次请求使用不同的邀请码，用户可以是任意的
 function getNextInviteCode() {
-  const userEmails = Object.keys(userInvitationCodes);
-  
-  if (userEmails.length === 0) {
+  if (invitationCodes.length === 0) {
     return {
       inviteCode: 'uSTbNld',
       userId: generateRandomUUID()
@@ -95,14 +87,13 @@ function getNextInviteCode() {
   }
   
   // 使用全局计数器确保每次请求使用不同的邀请码
-  const userIndex = (globalUserCounter++) % userEmails.length;
-  const sourceEmail = userEmails[userIndex];
-  const inviteCode = userInvitationCodes[sourceEmail];
+  const codeIndex = (globalInviteCodeCounter++) % invitationCodes.length;
+  const inviteCode = invitationCodes[codeIndex];
   
   // 生成随机userId用于兑换
   const userId = generateRandomUUID();
   
-  console.log(`🔄 [请求${globalUserCounter}] 兑换邀请码: ${inviteCode} (来源: ${sourceEmail}), 用户ID: ${userId}`);
+  console.log(`🔄 [请求${globalInviteCodeCounter}] 兑换邀请码: ${inviteCode} (索引: ${codeIndex}), 用户ID: ${userId}`);
   
   return {
     inviteCode: inviteCode,  // 每次使用不同的邀请码
