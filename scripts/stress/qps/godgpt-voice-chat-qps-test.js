@@ -179,9 +179,6 @@ export default function (data) {
     '业务逻辑成功': false
   };
   
-  // 检查是否为超时请求（超过60秒但仍有响应状态码）
-  const isTimeout = voiceChatResponse.timings.duration >= 60000 && voiceChatResponse.status > 0;
-  
   const isVoiceChatSuccess = check(voiceChatResponse, {
     'HTTP状态码200': (r) => {
       const result = r.status === 200;
@@ -211,21 +208,13 @@ export default function (data) {
     }
   });
 
-  // 修正成功率计算：超时但有响应状态码的请求算作成功（只是慢）
-  const adjustedSuccess = isVoiceChatSuccess || isTimeout;
-  
-  // 记录自定义指标 - 修正后的成功率
-  voiceChatRate.add(adjustedSuccess);
+  // 记录自定义指标 - 直接使用检查结果
+  voiceChatRate.add(isVoiceChatSuccess);
   voiceChatRequestDuration.add(voiceChatResponse.timings.duration);
   
-  // 只有真正成功的请求才记录到响应时间指标中
+  // 只有成功的请求才记录到响应时间指标中
   if (isVoiceChatSuccess) {
     voiceChatDuration.add(voiceChatResponse.timings.duration);
-  }
-  
-  // 如果是超时但有响应，记录到单独的指标中便于分析
-  if (isTimeout) {
-    console.log(`⏰ 超时响应 [会话: ${sessionId.substring(0, 8)}...] 响应时间: ${voiceChatResponse.timings.duration.toFixed(2)}ms, 状态码: ${voiceChatResponse.status}`);
   }
   
   // 如果语音聊天失败，记录错误信息用于调试（可通过SHOW_RESPONSE_DETAILS控制）
