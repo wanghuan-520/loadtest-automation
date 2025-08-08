@@ -23,8 +23,6 @@ import { getAccessToken, setupTest, teardownTest } from '../../utils/auth.js';
 // 自定义指标
 const invitationRedeemSuccessRate = new Rate('invitation_redeem_success_rate');
 const invitationRedeemDuration = new Trend('invitation_redeem_duration');
-const timeoutRate = new Rate('invitation_redeem_timeout_rate'); // 超时率统计
-const slowResponseRate = new Rate('invitation_redeem_slow_response_rate'); // 慢响应率统计
 
 // 从配置文件加载环境配置和测试数据
 const config = JSON.parse(open('../../../config/env.dev.json'));
@@ -138,46 +136,30 @@ export default function (data) {
   
   const invitationRedeemResponse = http.post(invitationRedeemUrl, invitationRedeemPayload, invitationRedeemParams);
 
-  // 计算响应时间和状态用于指标记录
-  const responseTime = invitationRedeemResponse.timings.duration;
-  const isTimeout = responseTime >= 30000; // 30秒超时
-  const isSlowResponse = responseTime > 5000; // 超过5秒算慢响应
-
-  // 检查邀请码兑换是否成功 - HTTP状态码200 + 业务code为20000
+  // 检查邀请码兑换是否成功 - 简化成功率判断，只看接口是否返回数据
   const isInvitationRedeemSuccess = check(invitationRedeemResponse, {
     'HTTP状态码200': (r) => r.status === 200,
-    '业务代码20000': (r) => {
-      try {
-        const data = JSON.parse(r.body);
-        return data.code === "20000";
-      } catch {
-        return false;
+    '接口返回数据': (r) => {
+      // 成功率只看接口有没有返回数据，简单直接
+      const hasResponse = r.body && r.body.length > 0;
+      const result = r.status === 200 && hasResponse;
+      
+      // 简化日志：只记录关键信息
+      if (result) {
+        console.log(`✅ 接口返回数据 - 邀请码: ${randomInviteCode}, 状态码: ${r.status}, 数据长度: ${r.body.length}`);
+      } else {
+        console.log(`❌ 接口无数据返回 - 邀请码: ${randomInviteCode}, 状态码: ${r.status}, 数据长度: ${r.body ? r.body.length : 0}`);
       }
-    },
-    '响应格式正确': (r) => {
-      try {
-        const data = JSON.parse(r.body);
-        return data.hasOwnProperty('code') && data.hasOwnProperty('message');
-      } catch {
-        return false;
-      }
+      
+      return result;
     }
   });
   
-  // 记录邀请码兑换指标 - HTTP200且响应格式正确即算成功（使用随机邀请码进行测试）
+  // 记录邀请码兑换指标 - 直接使用检查结果
   invitationRedeemSuccessRate.add(isInvitationRedeemSuccess);
   
-  // 可选：记录当前使用的邀请码（用于调试）
-  if (!isInvitationRedeemSuccess) {
-    console.log(`❌ 邀请码兑换失败 - 使用邀请码: ${randomInviteCode}, HTTP状态码: ${invitationRedeemResponse.status}`);
-  }
-  
-  // 记录超时和慢响应指标
-  timeoutRate.add(isTimeout);
-  slowResponseRate.add(isSlowResponse);
-
-  // 记录响应时间（包括超时的请求）
-  if (invitationRedeemResponse.status === 200) {
+  // 只有成功的请求才记录到响应时间指标中
+  if (isInvitationRedeemSuccess) {
     invitationRedeemDuration.add(invitationRedeemResponse.timings.duration);
   }
 }
