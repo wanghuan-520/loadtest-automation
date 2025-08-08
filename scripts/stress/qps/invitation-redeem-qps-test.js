@@ -83,6 +83,7 @@ function generateRandomUUID() {
 }
 
 // 获取下一个用户的邮箱和邀请码
+// 修正逻辑：每个用户兑换自己的邀请码，每次请求使用不同的用户及其对应的邀请码
 function getNextUserAndInviteCode() {
   const userEmails = Object.keys(userInvitationCodes);
   
@@ -90,23 +91,23 @@ function getNextUserAndInviteCode() {
     return {
       email: 'loadtestc1@teml.net',
       inviteCode: 'uSTbNld',
-      userId: generateRandomUUID()
+      userId: 'loadtestc1'
     };
   }
   
   // 使用全局计数器确保每次请求使用不同的用户
   const userIndex = (globalUserCounter++) % userEmails.length;
   const userEmail = userEmails[userIndex];
-  const inviteCode = userInvitationCodes[userEmail];
+  const userInviteCode = userInvitationCodes[userEmail]; // 用户自己的邀请码
   
   // 从邮箱中提取用户ID部分作为userId（去掉@teml.net）
   const userId = userEmail.replace('@teml.net', '');
   
-  console.log(`🔄 [请求${globalUserCounter}] 使用用户: ${userEmail}, 邀请码: ${inviteCode}, 用户ID: ${userId}`);
+  console.log(`🔄 [请求${globalUserCounter}] 用户 ${userEmail} 兑换自己的邀请码: ${userInviteCode}`);
   
   return {
     email: userEmail,
-    inviteCode: inviteCode,
+    inviteCode: userInviteCode, // 每个用户兑换自己的邀请码
     userId: userId
   };
 }
@@ -137,15 +138,15 @@ export const options = {
 export default function (data) {
   const startTime = Date.now();
   
-  // 获取下一个用户的邮箱、邀请码和用户ID
+  // 获取下一个用户的信息：每个用户兑换自己的邀请码
   const userInfo = getNextUserAndInviteCode();
   
   // 构造邀请码兑换请求
   const invitationRedeemUrl = `${data.baseUrl}/godgpt/invitation/redeem`;
   
   const invitationRedeemPayload = JSON.stringify({
-    inviteCode: userInfo.inviteCode,
-    userId: userInfo.userId  // 使用对应用户的ID
+    inviteCode: userInfo.inviteCode,  // 用户自己的邀请码
+    userId: userInfo.userId          // 用户自己的ID
   });
   
   // 构造请求头 - 匹配curl命令，包含authorization token
