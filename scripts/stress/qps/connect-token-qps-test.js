@@ -91,15 +91,19 @@ function getNextEmail() {
   const emailIndex = (globalEmailCounter++) % totalEmails + 1;
   
   // 检查EMAIL_LIST是配置对象还是数组
+  let email;
   if (EMAIL_LIST.mode === 'computed') {
     // 高性能模式：直接计算邮箱名
-    const email = `${EMAIL_LIST.prefix}${emailIndex}@teml.net`;
-    return email;
+    email = `${EMAIL_LIST.prefix}${emailIndex}@teml.net`;
   } else {
     // 常规模式：使用预生成的数组
-    const email = EMAIL_LIST[emailIndex - 1]; // 数组索引从0开始
-    return email;
+    email = EMAIL_LIST[emailIndex - 1]; // 数组索引从0开始
   }
+  
+  // 记录邮箱使用信息，便于验证唯一性
+  console.log(`🔄 [请求${globalEmailCounter}] 使用邮箱: ${email} (索引: ${emailIndex})`);
+  
+  return email;
 }
 
 // 环境配置 - 基于curl命令更新
@@ -178,7 +182,7 @@ export default function () {
   
   const tokenResponse = http.post(tokenUrl, tokenPayload, tokenParams);
 
-  // 检查token获取是否成功 - 简化检查提升性能
+  // 检查token获取是否成功 - 增加详细日志
   const isTokenSuccess = check(tokenResponse, {
     'HTTP状态码200': (r) => r.status === 200,
     '响应包含access_token': (r) => {
@@ -191,7 +195,29 @@ export default function () {
     }
   });
   
-  // 记录自定义指标 - 简化判断，只检查最关键的access_token
+  // 详细的成功/失败日志
+  if (isTokenSuccess) {
+    console.log(`✅ [${currentEmail}] 认证成功 - 响应时间: ${tokenResponse.timings.duration.toFixed(2)}ms`);
+  } else {
+    // 失败时打印详细错误信息
+    console.log(`❌ [${currentEmail}] 认证失败:`);
+    console.log(`   状态码: ${tokenResponse.status}`);
+    console.log(`   响应时间: ${tokenResponse.timings.duration.toFixed(2)}ms`);
+    
+    // 尝试解析响应体获取错误详情
+    try {
+      const errorBody = JSON.parse(tokenResponse.body);
+      console.log(`   错误详情: ${JSON.stringify(errorBody, null, 2)}`);
+    } catch {
+      console.log(`   响应体: ${tokenResponse.body || '空响应体'}`);
+    }
+    
+    // 打印请求详情便于调试
+    console.log(`   请求URL: ${tokenUrl}`);
+    console.log(`   用户名: ${currentEmail}`);
+  }
+  
+  // 记录自定义指标
   tokenRequestRate.add(isTokenSuccess);
   if (isTokenSuccess) {
     tokenResponseDuration.add(tokenResponse.timings.duration);
