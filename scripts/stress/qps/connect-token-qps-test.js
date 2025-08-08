@@ -5,11 +5,11 @@ import { SharedArray } from 'k6/data';
 import { open } from 'k6';
 
 // 使用说明：
-// 默认目标QPS: 40 QPS（每秒40个请求，持续5分钟）
-// 自定义目标QPS: k6 run -e TARGET_QPS=60 connect-token-qps-test.js
-// 示例: k6 run -e TARGET_QPS=50 connect-token-qps-test.js
-// 自定义邮箱前缀: k6 run -e TARGET_QPS=10 -e EMAIL_PREFIX=mytest connect-token-qps-test.js
-// 注意: 邮箱范围根据QPS动态计算：QPS×300（5分钟测试时长）
+// 默认目标QPS: 70 QPS（每秒70个请求，持续5分钟）
+// 自定义目标QPS: k6 run -e TARGET_QPS=80 connect-token-qps-test.js
+// 示例: k6 run -e TARGET_QPS=100 connect-token-qps-test.js
+// 自定义邮箱前缀: k6 run -e TARGET_QPS=70 -e EMAIL_PREFIX=loadtestc connect-token-qps-test.js
+// 注意: 邮箱范围固定为1-30000，保证充足的唯一邮箱
 
 // 自定义指标
 const tokenRequestRate = new Rate('token_request_success_rate');
@@ -18,15 +18,15 @@ const tokenResponseDuration = new Trend('token_response_duration');
 // 固定使用的密码
 const FIXED_PASSWORD = 'Wh520520!';
 
-// 获取目标QPS参数，默认值为40
-const TARGET_QPS = __ENV.TARGET_QPS ? parseInt(__ENV.TARGET_QPS) : 1;
+// 获取目标QPS参数，默认值为70
+const TARGET_QPS = __ENV.TARGET_QPS ? parseInt(__ENV.TARGET_QPS) : 70;
 
 // 获取邮箱前缀参数，默认值为'loadtest'
 const EMAIL_PREFIX = __ENV.EMAIL_PREFIX || 'loadtest';
 
-// 根据目标QPS动态计算邮箱数量：QPS × 300秒（5分钟） 
+// 固定邮箱数量为30000，覆盖1-30000范围
 // 确保每个请求都有唯一的用户名
-const EMAIL_COUNT = TARGET_QPS * 300;
+const EMAIL_COUNT = 30000;
 
 // 性能优化：根据邮箱数量选择不同的生成策略
 const PERFORMANCE_THRESHOLD = 50000; // 超过5万个邮箱时启用性能优化模式
@@ -35,7 +35,7 @@ const PERFORMANCE_THRESHOLD = 50000; // 超过5万个邮箱时启用性能优化
 const EMAIL_LIST = new SharedArray('emails', function () {
   console.log(`🎯 目标QPS: ${TARGET_QPS}`);
   console.log(`📧 邮箱前缀: ${EMAIL_PREFIX}`);
-  console.log(`📊 计算邮箱数量: ${TARGET_QPS} QPS × 300秒 = ${EMAIL_COUNT} 个邮箱`);
+  console.log(`📊 固定邮箱数量: ${EMAIL_COUNT} 个邮箱 (范围1-30000)`);
   
   // 性能检查和优化提示
   if (EMAIL_COUNT > PERFORMANCE_THRESHOLD) {
@@ -238,8 +238,8 @@ export function setup() {
   console.log('🔑 测试内容: OAuth2 密码认证流程');
   console.log('⏱️  预计测试时间: 5分钟');
   console.log('🌐 认证方式: OAuth2 Password Grant Type (用户名密码换取access_token)');
-  console.log(`📧 邮箱范围: ${EMAIL_PREFIX}1@teml.net ~ ${EMAIL_PREFIX}${EMAIL_COUNT}@teml.net`);
-  console.log(`🔢 邮箱总数: ${EMAIL_LIST.length} 个唯一测试邮箱`);
+  console.log(`📧 邮箱范围: ${EMAIL_PREFIX}1@teml.net ~ ${EMAIL_PREFIX}30000@teml.net`);
+  console.log(`🔢 邮箱总数: 30000 个唯一测试邮箱`);
   console.log('🔄 用户选择: 每次请求顺序选择不同邮箱，确保唯一性');
   
   return { baseUrl: config.baseUrl };

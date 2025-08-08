@@ -6,12 +6,19 @@ import { getAccessToken, setupTest, teardownTest } from '../../utils/auth.js';
 // 使用说明：
 // 默认目标QPS: 1 QPS（每秒1个请求，持续5分钟）
 // 自定义目标QPS: k6 run -e TARGET_QPS=5 invitation-redeem-qps-test.js
-// 示例: k6 run -e TARGET_QPS=10 invitation-redeem-qps-test.js
+// 自定义邀请码文件: k6 run -e INVITE_CODES_FILE=../../../results/my_invite_codes.json invitation-redeem-qps-test.js
+// 完整示例: k6 run -e TARGET_QPS=10 -e INVITE_CODES_FILE=../../../results/loadtestc_invite_codes_for_k6_20250808_123456.json invitation-redeem-qps-test.js
+// 
+// 📋 邀请码数据准备：
+// 1. 运行: python3 get_invitation_codes.py --start 1 --count 1000
+// 2. 脚本会生成: results/loadtestc_invite_codes_for_k6_TIMESTAMP.json
+// 3. 可选择创建软链接: ln -sf loadtestc_invite_codes_for_k6_TIMESTAMP.json loadtestc_invite_codes_for_k6_latest.json
 // 
 // ⚠️  压测注意事项：
 // - 如果出现大量超时(>30s)，说明服务器压力过大，建议降低QPS
 // - 推荐从低QPS开始测试：1 → 3 → 5 → 10，逐步提升
 // - 监控服务器CPU、内存使用率，避免影响生产环境
+// - 确保有足够的有效邀请码，避免重复使用导致错误
 
 // 自定义指标
 const invitationRedeemSuccessRate = new Rate('invitation_redeem_success_rate');
@@ -31,6 +38,19 @@ try {
   console.log('⚠️  未找到tokens.json配置文件，将使用环境变量或默认token');
 }
 
+// 加载邀请码数据 - 支持多种数据源
+let invitationCodes = [];
+try {
+  // 优先从环境变量指定的文件加载
+  const inviteCodesFile = __ENV.INVITE_CODES_FILE || '../../../results/loadtestc_invite_codes_for_k6_latest.json';
+  invitationCodes = JSON.parse(open(inviteCodesFile));
+  console.log(`✅ 成功加载 ${invitationCodes.length} 个邀请码`);
+} catch (error) {
+  console.log('⚠️  未找到邀请码数据文件，将使用默认邀请码');
+  // 回退使用默认邀请码列表
+  invitationCodes = ["uSTbNld", "default1", "default2"];
+}
+
 // 获取目标QPS参数，默认值为1（降低以避免服务器超时）
 const TARGET_QPS = __ENV.TARGET_QPS ? parseInt(__ENV.TARGET_QPS) : 1;
 
@@ -42,6 +62,15 @@ function generateRandomUUID() {
     const v = c == 'x' ? r : (r & 0x3 | 0x8);
     return v.toString(16);
   });
+}
+
+// 随机选择邀请码的函数
+function getRandomInviteCode() {
+  if (invitationCodes.length === 0) {
+    return "uSTbNld"; // 回退到默认邀请码
+  }
+  const randomIndex = Math.floor(Math.random() * invitationCodes.length);
+  return invitationCodes[randomIndex];
 }
 
 // 固定QPS压力测试场景配置
@@ -76,11 +105,11 @@ export default function (data) {
   // 构造邀请码兑换请求
   const invitationRedeemUrl = `${data.baseUrl}/godgpt/invitation/redeem`;
   
-  // 使用固定邀请码进行测试，并添加userId参数
-  const fixedInviteCode = "uSTbNld";
+  // 随机选择邀请码进行测试，并添加userId参数
+  const randomInviteCode = getRandomInviteCode();
   
   const invitationRedeemPayload = JSON.stringify({
-    inviteCode: fixedInviteCode,
+    inviteCode: randomInviteCode,
     userId: userId  // 添加随机生成的userId参数
   });
   
@@ -135,8 +164,13 @@ export default function (data) {
     }
   });
   
-  // 记录邀请码兑换指标 - HTTP200且响应格式正确即算成功（使用固定邀请码uSTbNld进行测试）
+  // 记录邀请码兑换指标 - HTTP200且响应格式正确即算成功（使用随机邀请码进行测试）
   invitationRedeemSuccessRate.add(isInvitationRedeemSuccess);
+  
+  // 可选：记录当前使用的邀请码（用于调试）
+  if (!isInvitationRedeemSuccess) {
+    console.log(`❌ 邀请码兑换失败 - 使用邀请码: ${randomInviteCode}, HTTP状态码: ${invitationRedeemResponse.status}`);
+  }
   
   // 记录超时和慢响应指标
   timeoutRate.add(isTimeout);
