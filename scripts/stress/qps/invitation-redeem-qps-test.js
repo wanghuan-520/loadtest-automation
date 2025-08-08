@@ -1,6 +1,7 @@
 import http from 'k6/http';
 import { check } from 'k6';
 import { Rate, Trend } from 'k6/metrics';
+import { SharedArray } from 'k6/data';
 import { getAccessToken, setupTest, teardownTest } from '../../utils/auth.js';
 
 // 使用说明：
@@ -36,39 +37,39 @@ try {
   console.log('⚠️  未找到tokens.json配置文件，将使用环境变量或默认token');
 }
 
-// 加载邀请码数据列表
-let invitationCodes = [];
-try {
-  // 优先从环境变量指定的文件加载，默认使用data目录下的邀请码文件
-  const inviteCodesFile = __ENV.INVITE_CODES_FILE || '../data/loadtest_invite_codes.json';
-  const rawData = JSON.parse(open(inviteCodesFile));
-  
-  // 如果是数组格式，直接使用
-  if (Array.isArray(rawData)) {
-    invitationCodes = rawData;
-    console.log(`✅ 成功加载 ${invitationCodes.length} 个邀请码`);
-    console.log(`📋 Debug: 前5个邀请码示例: ${invitationCodes.slice(0, 5).join(', ')}`);
-  } else if (typeof rawData === 'object') {
-    // 如果是对象格式（用户邮箱映射），提取所有邀请码
-    invitationCodes = Object.values(rawData);
-    console.log(`✅ 从用户映射中提取 ${invitationCodes.length} 个邀请码`);
-    console.log(`📋 Debug: 前5个邀请码示例: ${invitationCodes.slice(0, 5).join(', ')}`);
-  } else {
-    throw new Error('不支持的邀请码数据格式');
+// 使用SharedArray确保所有VU共享相同的邀请码数据
+const invitationCodes = new SharedArray('invitationCodes', function () {
+  try {
+    // 优先从环境变量指定的文件加载，默认使用data目录下的邀请码文件
+    const inviteCodesFile = __ENV.INVITE_CODES_FILE || '../data/loadtest_invite_codes.json';
+    const rawData = JSON.parse(open(inviteCodesFile));
+    
+    let codes = [];
+    // 如果是数组格式，直接使用
+    if (Array.isArray(rawData)) {
+      codes = rawData;
+      console.log(`✅ 成功加载 ${codes.length} 个邀请码`);
+      console.log(`📋 Debug: 前5个邀请码示例: ${codes.slice(0, 5).join(', ')}`);
+    } else if (typeof rawData === 'object') {
+      // 如果是对象格式（用户邮箱映射），提取所有邀请码
+      codes = Object.values(rawData);
+      console.log(`✅ 从用户映射中提取 ${codes.length} 个邀请码`);
+      console.log(`📋 Debug: 前5个邀请码示例: ${codes.slice(0, 5).join(', ')}`);
+    } else {
+      throw new Error('不支持的邀请码数据格式');
+    }
+    return codes;
+  } catch (error) {
+    console.log(`⚠️  未找到邀请码数据文件: ${error.message}，将使用默认邀请码`);
+    // 回退使用默认邀请码列表
+    return ['uSTbNld', 'default1', 'default2'];
   }
-} catch (error) {
-  console.log(`⚠️  未找到邀请码数据文件: ${error.message}，将使用默认邀请码`);
-  // 回退使用默认邀请码列表
-  invitationCodes = ['uSTbNld', 'default1', 'default2'];
-}
+});
 
 // 获取目标QPS参数，默认值为1（降低以避免服务器超时）
 const TARGET_QPS = __ENV.TARGET_QPS ? parseInt(__ENV.TARGET_QPS) : 1;
 
-// 全局邀请码计数器，确保每次请求使用不同的邀请码
-let globalInviteCodeCounter = 0;
-
-// Debug: 记录已使用的邀请码，用于验证唯一性
+// Debug: 记录已使用的邀请码，用于验证唯一性（每个VU维护自己的记录）
 let usedInviteCodes = new Set();
 let requestCounter = 0;
 
@@ -83,7 +84,7 @@ function generateRandomUUID() {
 }
 
 // 获取下一个不同的邀请码
-// 每次请求使用不同的邀请码，用户可以是任意的
+// 使用VU ID + 迭代次数 + 时间戳确保跨VU的唯一性
 function getNextInviteCode() {
   if (invitationCodes.length === 0) {
     return {
@@ -92,15 +93,21 @@ function getNextInviteCode() {
     };
   }
   
-  // 使用全局计数器确保每次请求使用不同的邀请码
-  const codeIndex = (globalInviteCodeCounter++) % invitationCodes.length;
+  // 使用VU ID、迭代次数和时间戳的组合确保跨VU的唯一性
+  const vuId = __VU || 1;          // 当前VU的ID
+  const iterNum = __ITER || 0;     // 当前VU的迭代次数
+  const timestamp = Date.now() % 1000000;  // 时间戳（取模避免过大）
+  
+  // 创建唯一索引：VU*10000 + 迭代*100 + 时间戳后3位
+  const uniqueIndex = (vuId * 10000) + (iterNum * 100) + (timestamp % 100);
+  const codeIndex = uniqueIndex % invitationCodes.length;
   const inviteCode = invitationCodes[codeIndex];
   
-  // Debug: 验证邀请码唯一性
+  // Debug: 验证邀请码唯一性（在当前VU范围内）
   requestCounter++;
-  const isCodeReused = usedInviteCodes.has(inviteCode);
+  const isCodeReusedInVU = usedInviteCodes.has(inviteCode);
   
-  if (!isCodeReused) {
+  if (!isCodeReusedInVU) {
     usedInviteCodes.add(inviteCode);
   }
   
@@ -108,14 +115,14 @@ function getNextInviteCode() {
   const userId = generateRandomUUID();
   
   // Debug 详细日志
-  console.log(`🔄 [请求${requestCounter}] 兑换邀请码: ${inviteCode} (索引: ${codeIndex})`);
-  console.log(`   📊 Debug信息: 全局计数器=${globalInviteCodeCounter}, 邀请码池大小=${invitationCodes.length}`);
-  console.log(`   🔍 唯一性验证: ${isCodeReused ? '❌ 重复使用' : '✅ 首次使用'}, 已使用码数=${usedInviteCodes.size}`);
-  console.log(`   👤 用户ID: ${userId.substring(0, 8)}...`);
+  console.log(`🔄 [VU${vuId}-请求${requestCounter}] 兑换邀请码: ${inviteCode} (索引: ${codeIndex})`);
+  console.log(`   📊 Debug信息: VU=${vuId}, 迭代=${iterNum}, 时间戳=${timestamp}, 唯一索引=${uniqueIndex}`);
+  console.log(`   🔍 VU内唯一性: ${isCodeReusedInVU ? '❌ VU内重复' : '✅ VU内首次'}, VU内已用=${usedInviteCodes.size}`);
+  console.log(`   📦 邀请码池大小=${invitationCodes.length}, 👤 用户ID: ${userId.substring(0, 8)}...`);
   
-  // 如果检测到重复使用，额外记录
-  if (isCodeReused) {
-    console.log(`⚠️  警告: 邀请码 ${inviteCode} 在索引 ${codeIndex} 处被重复使用!`);
+  // 如果检测到VU内重复使用，记录警告
+  if (isCodeReusedInVU) {
+    console.log(`⚠️  警告: VU${vuId}内邀请码 ${inviteCode} 被重复使用!`);
   }
   
   return {
