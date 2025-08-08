@@ -47,10 +47,12 @@ try {
   if (Array.isArray(rawData)) {
     invitationCodes = rawData;
     console.log(`✅ 成功加载 ${invitationCodes.length} 个邀请码`);
+    console.log(`📋 Debug: 前5个邀请码示例: ${invitationCodes.slice(0, 5).join(', ')}`);
   } else if (typeof rawData === 'object') {
     // 如果是对象格式（用户邮箱映射），提取所有邀请码
     invitationCodes = Object.values(rawData);
     console.log(`✅ 从用户映射中提取 ${invitationCodes.length} 个邀请码`);
+    console.log(`📋 Debug: 前5个邀请码示例: ${invitationCodes.slice(0, 5).join(', ')}`);
   } else {
     throw new Error('不支持的邀请码数据格式');
   }
@@ -65,6 +67,10 @@ const TARGET_QPS = __ENV.TARGET_QPS ? parseInt(__ENV.TARGET_QPS) : 1;
 
 // 全局邀请码计数器，确保每次请求使用不同的邀请码
 let globalInviteCodeCounter = 0;
+
+// Debug: 记录已使用的邀请码，用于验证唯一性
+let usedInviteCodes = new Set();
+let requestCounter = 0;
 
 // 生成随机UUID的函数 - 用于userId参数
 function generateRandomUUID() {
@@ -90,10 +96,27 @@ function getNextInviteCode() {
   const codeIndex = (globalInviteCodeCounter++) % invitationCodes.length;
   const inviteCode = invitationCodes[codeIndex];
   
+  // Debug: 验证邀请码唯一性
+  requestCounter++;
+  const isCodeReused = usedInviteCodes.has(inviteCode);
+  
+  if (!isCodeReused) {
+    usedInviteCodes.add(inviteCode);
+  }
+  
   // 生成随机userId用于兑换
   const userId = generateRandomUUID();
   
-  console.log(`🔄 [请求${globalInviteCodeCounter}] 兑换邀请码: ${inviteCode} (索引: ${codeIndex}), 用户ID: ${userId}`);
+  // Debug 详细日志
+  console.log(`🔄 [请求${requestCounter}] 兑换邀请码: ${inviteCode} (索引: ${codeIndex})`);
+  console.log(`   📊 Debug信息: 全局计数器=${globalInviteCodeCounter}, 邀请码池大小=${invitationCodes.length}`);
+  console.log(`   🔍 唯一性验证: ${isCodeReused ? '❌ 重复使用' : '✅ 首次使用'}, 已使用码数=${usedInviteCodes.size}`);
+  console.log(`   👤 用户ID: ${userId.substring(0, 8)}...`);
+  
+  // 如果检测到重复使用，额外记录
+  if (isCodeReused) {
+    console.log(`⚠️  警告: 邀请码 ${inviteCode} 在索引 ${codeIndex} 处被重复使用!`);
+  }
   
   return {
     inviteCode: inviteCode,  // 每次使用不同的邀请码
@@ -191,6 +214,10 @@ export default function (data) {
 
 // 测试设置阶段
 export function setup() {
+  console.log(`🚀 Debug: 开始邀请码兑换QPS测试`);
+  console.log(`📊 Debug: 目标QPS=${TARGET_QPS}, 邀请码池大小=${invitationCodes.length}`);
+  console.log(`🔧 Debug: 预期能运行 ${Math.floor(invitationCodes.length / TARGET_QPS)} 秒不重复邀请码`);
+  
   return setupTest(
     config, 
     tokenConfig, 
