@@ -207,13 +207,37 @@ export default function (data) {
         const data = JSON.parse(r.body);
         result = data.code === "20000";
       } catch {
-        // 对于流式响应（text/event-stream），检查是否包含数据标识
+        // 对于流式响应（text/event-stream），检查是否包含有效的数据标识
         if (r.body) {
           const bodyStr = r.body.toString();
-          const hasData = bodyStr.includes('data:');
-          const hasEvent = bodyStr.includes('event:');
-          const isOk = r.status === 200;
-          result = hasData || hasEvent || isOk;
+          
+          // 检查Server-Sent Events (SSE) 格式的流式响应
+          const hasDataField = bodyStr.includes('data:');
+          const hasEventField = bodyStr.includes('event:');
+          
+          // 检查是否包含有效的数据内容（非空数据）
+          const hasValidData = /data:\s*(?!\s*$|\[DONE\]).+/m.test(bodyStr);
+          
+          // 检查是否有完整的流式响应结构
+          const hasStreamEnd = bodyStr.includes('[DONE]') || bodyStr.includes('data: [DONE]');
+          
+          // 流式响应成功的条件：
+          // 1. HTTP 200状态码
+          // 2. 包含data字段或event字段
+          // 3. 包含有效的非空数据内容
+          const isValidStream = r.status === 200 && (hasDataField || hasEventField) && hasValidData;
+          
+          // 如果是完整的流响应（包含结束标识），直接认为成功
+          const isCompleteStream = r.status === 200 && hasStreamEnd;
+          
+          result = isValidStream || isCompleteStream;
+          
+          // 调试日志：记录流式响应的检查结果
+          if (result) {
+            console.log(`✅ 流式响应成功 [会话: ${sessionId.substring(0, 8)}...]: hasData=${hasDataField}, hasEvent=${hasEventField}, hasValidData=${hasValidData}, hasEnd=${hasStreamEnd}`);
+          } else {
+            console.log(`❌ 流式响应失败 [会话: ${sessionId.substring(0, 8)}...]: 状态码=${r.status}, 响应体长度=${bodyStr.length}, hasData=${hasDataField}, hasValidData=${hasValidData}`);
+          }
         } else {
           // 如果没有响应体，仅根据状态码判断
           result = r.status === 200;
