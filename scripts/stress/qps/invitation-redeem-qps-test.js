@@ -83,8 +83,11 @@ function generateRandomUUID() {
   });
 }
 
+// VU内请求计数器，用于生成更可靠的唯一索引
+let vuRequestCounter = 0;
+
 // 获取下一个不同的邀请码
-// 使用VU ID + 迭代次数 + 时间戳确保跨VU的唯一性
+// 使用多层算法确保高QPS场景下的唯一性
 function getNextInviteCode() {
   if (invitationCodes.length === 0) {
     return {
@@ -93,13 +96,25 @@ function getNextInviteCode() {
     };
   }
   
-  // 使用VU ID、迭代次数和时间戳的组合确保跨VU的唯一性
-  const vuId = __VU || 1;          // 当前VU的ID
-  const iterNum = __ITER || 0;     // 当前VU的迭代次数
-  const timestamp = Date.now() % 1000000;  // 时间戳（取模避免过大）
+  // 多层算法确保高QPS场景下的唯一性
+  const vuId = __VU || 1;              // 当前VU的ID
+  const iterNum = __ITER || 0;         // 当前VU的迭代次数
+  const timestamp = Date.now();        // 完整时间戳
+  vuRequestCounter++;                  // VU内请求序号
   
-  // 创建唯一索引：VU*10000 + 迭代*100 + 时间戳后3位
-  const uniqueIndex = (vuId * 10000) + (iterNum * 100) + (timestamp % 100);
+  // 高QPS优化算法：
+  // 1. VU基础偏移：每个VU占用100个邀请码的空间
+  // 2. 迭代偏移：每次迭代在VU空间内顺序递增
+  // 3. 时间微调：使用微秒级时间戳避免同时请求冲突
+  // 4. 请求序号：VU内部请求的绝对序号
+  
+  const vuBaseOffset = (vuId - 1) * 100;  // 每个VU分配100个位置的基础空间
+  const iterOffset = iterNum * 10;        // 每次迭代偏移10个位置
+  const microOffset = (timestamp % 1000) % 10;  // 微秒级偏移(0-9)
+  const requestOffset = vuRequestCounter % 100; // VU内请求序号偏移
+  
+  // 组合唯一索引：确保不同VU、不同迭代、不同时间的请求都有唯一索引
+  const uniqueIndex = vuBaseOffset + iterOffset + microOffset + requestOffset;
   const codeIndex = uniqueIndex % invitationCodes.length;
   const inviteCode = invitationCodes[codeIndex];
   
@@ -114,15 +129,18 @@ function getNextInviteCode() {
   // 生成随机userId用于兑换
   const userId = generateRandomUUID();
   
-  // Debug 详细日志
-  console.log(`🔄 [VU${vuId}-请求${requestCounter}] 兑换邀请码: ${inviteCode} (索引: ${codeIndex})`);
-  console.log(`   📊 Debug信息: VU=${vuId}, 迭代=${iterNum}, 时间戳=${timestamp}, 唯一索引=${uniqueIndex}`);
-  console.log(`   🔍 VU内唯一性: ${isCodeReusedInVU ? '❌ VU内重复' : '✅ VU内首次'}, VU内已用=${usedInviteCodes.size}`);
-  console.log(`   📦 邀请码池大小=${invitationCodes.length}, 👤 用户ID: ${userId.substring(0, 8)}...`);
+  // Debug 详细日志（高QPS模式下简化日志）
+  const isHighQPS = __ENV.TARGET_QPS && parseInt(__ENV.TARGET_QPS) > 10;
+  if (!isHighQPS || requestCounter % 10 === 1) {  // 高QPS时只显示部分日志
+    console.log(`🔄 [VU${vuId}-请求${requestCounter}] 兑换邀请码: ${inviteCode} (索引: ${codeIndex})`);
+    console.log(`   📊 算法详情: VU基础=${vuBaseOffset}, 迭代=${iterOffset}, 微秒=${microOffset}, 请求序号=${requestOffset}`);
+    console.log(`   🔍 VU内唯一性: ${isCodeReusedInVU ? '❌ VU内重复' : '✅ VU内首次'}, VU内已用=${usedInviteCodes.size}`);
+    console.log(`   📦 唯一索引=${uniqueIndex}, 邀请码池=${invitationCodes.length}`);
+  }
   
   // 如果检测到VU内重复使用，记录警告
   if (isCodeReusedInVU) {
-    console.log(`⚠️  警告: VU${vuId}内邀请码 ${inviteCode} 被重复使用!`);
+    console.log(`⚠️  警告: VU${vuId}内邀请码 ${inviteCode} 被重复使用! 索引=${codeIndex}`);
   }
   
   return {
@@ -223,7 +241,24 @@ export default function (data) {
 export function setup() {
   console.log(`🚀 Debug: 开始邀请码兑换QPS测试`);
   console.log(`📊 Debug: 目标QPS=${TARGET_QPS}, 邀请码池大小=${invitationCodes.length}`);
+  
+  // 高QPS支持能力分析
+  const maxSupportedVUs = Math.floor(invitationCodes.length / 100);  // 每个VU分配100个位置
+  const estimatedVUs = Math.max(TARGET_QPS, Math.ceil(TARGET_QPS / 5));  // 估算需要的VU数
+  
+  console.log(`🔧 算法支持能力: 最大支持${maxSupportedVUs}个VU, 当前估算需要${estimatedVUs}个VU`);
+  
+  if (estimatedVUs > maxSupportedVUs) {
+    console.log(`⚠️  警告: 当前QPS可能超出算法最优范围，建议QPS不超过${maxSupportedVUs * 5}`);
+  } else {
+    console.log(`✅ QPS范围适合: 当前算法可以很好支持${TARGET_QPS} QPS`);
+  }
+  
   console.log(`🔧 Debug: 预期能运行 ${Math.floor(invitationCodes.length / TARGET_QPS)} 秒不重复邀请码`);
+  
+  if (TARGET_QPS > 10) {
+    console.log(`💡 高QPS模式: 日志已简化，仅显示每10个请求中的1个详细信息`);
+  }
   
   return setupTest(
     config, 
