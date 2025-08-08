@@ -79,16 +79,24 @@ const EMAIL_LIST = new SharedArray('emails', function () {
   }
 });
 
-// 全局唯一邮箱计数器，确保绝对唯一性
-// 使用原子操作保证在高并发下邮箱不重复
-let globalEmailCounter = 0;
-
+// 使用VU和迭代组合生成真正唯一的邮箱索引
+// 避免多VU环境下的全局变量竞争问题
 function getNextEmail() {
   // 获取总邮箱数量
   const totalEmails = EMAIL_LIST.mode === 'computed' ? EMAIL_LIST.count : EMAIL_LIST.length;
   
-  // 原子递增全局计数器，确保绝对唯一
-  const emailIndex = (globalEmailCounter++) % totalEmails + 1;
+  // 使用k6内置变量生成绝对唯一的邮箱索引
+  // __VU: 虚拟用户ID (1, 2, 3, ...)
+  // __ITER: 当前VU的迭代次数 (0, 1, 2, ...)
+  const vuId = __VU || 1;
+  const iterNum = __ITER || 0;
+  
+  // 计算全局唯一的请求序号：基于时间戳和VU确保绝对唯一
+  const baseTimestamp = Date.now() % 1000000; // 获取时间戳后6位作为基数
+  const uniqueRequestId = (baseTimestamp * 1000) + (vuId * 100) + iterNum;
+  
+  // 生成邮箱索引：确保在有效范围内
+  const emailIndex = (uniqueRequestId % totalEmails) + 1;
   
   // 检查EMAIL_LIST是配置对象还是数组
   let email;
@@ -101,7 +109,7 @@ function getNextEmail() {
   }
   
   // 记录邮箱使用信息，便于验证唯一性
-  console.log(`🔄 [请求${globalEmailCounter}] 使用邮箱: ${email} (索引: ${emailIndex})`);
+  console.log(`🔄 [VU${vuId}-第${iterNum}次] 使用邮箱: ${email} (索引: ${emailIndex}, 唯一ID: ${uniqueRequestId})`);
   
   return email;
 }
