@@ -197,10 +197,8 @@ export default function (data) {
       
       checkResults['业务逻辑成功'] = result;
       
-      // 简化日志：只记录关键信息
-      if (result) {
-        console.log(`✅ 接口返回数据 [会话: ${sessionId.substring(0, 8)}...]: 状态码=${r.status}, 数据长度=${r.body.length}`);
-      } else {
+      // 只在失败时打印日志
+      if (!result) {
         console.log(`❌ 接口无数据返回 [会话: ${sessionId.substring(0, 8)}...]: 状态码=${r.status}, 数据长度=${r.body ? r.body.length : 0}`);
       }
       
