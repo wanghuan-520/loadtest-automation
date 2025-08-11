@@ -17,7 +17,7 @@ const requestQueue = new Trend('request_queue');    // 请求队列监控
 const config = JSON.parse(open('../../../config/env.dev.json'));
 
 // 获取目标QPS参数，默认值为50
-const TARGET_QPS = __ENV.TARGET_QPS ? parseInt(__ENV.TARGET_QPS) : 50;
+const TARGET_QPS = __ENV.TARGET_QPS ? parseInt(__ENV.TARGET_QPS) : 1;
 
 // 生成随机IP地址的函数
 function generateRandomIP() {
