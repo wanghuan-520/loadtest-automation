@@ -82,6 +82,11 @@ export const options = {
       tags: { test_type: 'fixed_qps_voice_chat' },
     },
   },
+  // 连接池优化：提高QPS稳定性，减少连接重置
+  batch: 1,                          // 每次只发送1个请求，确保精确控制
+  batchPerHost: 1,                   // 每个主机只并发1个请求批次
+  noConnectionReuse: false,          // 启用连接复用，减少新连接建立
+  userAgent: 'k6-loadtest/1.0',      // 统一User-Agent
   // 可选的性能阈值 - 可通过环境变量 ENABLE_THRESHOLDS=true 启用
   thresholds: __ENV.ENABLE_THRESHOLDS ? {
     http_req_failed: ['rate<0.05'],                    // HTTP失败率小于5%

@@ -43,6 +43,11 @@ export const options = {
       tags: { test_type: 'fixed_qps_session_delete' },
     },
   },
+  // 连接池优化：提高QPS稳定性，减少连接重置
+  batch: 1,                          // 每次只发送1个请求，确保精确控制
+  batchPerHost: 1,                   // 每个主机只并发1个请求批次
+  noConnectionReuse: false,          // 启用连接复用，减少新连接建立
+  userAgent: 'k6-loadtest/1.0',      // 统一User-Agent
   // 注释掉阈值设置，只关注QPS稳定性，不验证响应质量
   // thresholds: {
   //   http_req_failed: ['rate<0.01'],
