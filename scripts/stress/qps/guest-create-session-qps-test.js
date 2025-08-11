@@ -35,9 +35,9 @@ export const options = {
       rate: TARGET_QPS,              // 每秒请求数（QPS）
       timeUnit: '1s',                // 时间单位：1秒
       duration: '5m',                // 测试持续时间：5分钟
-      // QPS稳定性优化：大量预分配VU确保稳定
-      preAllocatedVUs: Math.max(Math.ceil(TARGET_QPS * 5), TARGET_QPS),  
-      maxVUs: Math.max(TARGET_QPS * 20, 5000), // 支持极端高负载场景(最大5000 VU)
+      // QPS稳定性优化：应对极端响应时间波动(15ms-55s)
+      preAllocatedVUs: Math.max(Math.ceil(TARGET_QPS * 60), TARGET_QPS * 3),  
+      maxVUs: Math.max(TARGET_QPS * 100, 10000), // 应对55秒极端响应时间
       tags: { test_type: 'fixed_qps' },
     },
   },
@@ -109,8 +109,8 @@ export default function () {
 // 测试设置阶段
 export function setup() {
   const startTime = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
-  const preAllocatedVUs = Math.max(Math.ceil(TARGET_QPS * 5), TARGET_QPS);
-  const maxVUs = Math.max(TARGET_QPS * 20, 5000);
+  const preAllocatedVUs = Math.max(Math.ceil(TARGET_QPS * 60), TARGET_QPS * 3);
+  const maxVUs = Math.max(TARGET_QPS * 100, 10000);
   
   console.log('🎯 开始 guest/create-session 固定QPS压力测试...');
   console.log(`🕐 测试开始时间: ${startTime}`);
@@ -118,8 +118,8 @@ export function setup() {
   console.log(`🔧 测试场景: 固定QPS测试 (${TARGET_QPS} QPS，持续5分钟)`);
   console.log(`⚡ 目标QPS: ${TARGET_QPS} (可通过 TARGET_QPS 环境变量配置)`);
   console.log(`🔄 预估总请求数: ${TARGET_QPS * 300} 个 (${TARGET_QPS} QPS × 300秒)`);
-  console.log(`👥 VU配置: 预分配${preAllocatedVUs}个，最大${maxVUs}个 (大量预分配优化)`);
-  console.log('🚀 稳定策略: 5倍VU预分配，确保QPS稳定输出');
+  console.log(`👥 VU配置: 预分配${preAllocatedVUs}个，最大${maxVUs}个 (应对极端响应时间波动)`);
+  console.log('🚀 稳定策略: 60倍VU预分配，应对55秒极端响应时间');
   console.log('⏱️  预计测试时间: 5分钟');
   return { baseUrl: config.baseUrl };
 }
