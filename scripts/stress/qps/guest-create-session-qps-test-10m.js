@@ -48,6 +48,14 @@ export const options = {
   batchPerHost: 1,                   // 每个主机只并发1个请求批次
   noConnectionReuse: false,          // 启用连接复用，减少新连接建立
   userAgent: 'k6-loadtest/1.0',      // 统一User-Agent
+  // 高级连接池优化：应对70 QPS高负载挑战
+  discardResponseBodies: false,      // 保留响应体用于业务验证
+  noVUConnectionReuse: false,        // VU级连接复用启用
+  insecureSkipTLSVerify: false,      // 保持TLS验证（生产环境安全）
+  tlsVersion: {                      // TLS版本优化
+    min: 'tls1.2',
+    max: 'tls1.3'
+  },
   // 注释掉阈值设置，只关注QPS稳定性，不验证响应质量
   // thresholds: {
   //   http_req_failed: ['rate<0.01'],
@@ -130,8 +138,10 @@ export function setup() {
   console.log(`⚡ 目标QPS: ${TARGET_QPS} (可通过 TARGET_QPS 环境变量配置)`);
   console.log(`🔄 预估总请求数: ${TARGET_QPS * 600} 个 (${TARGET_QPS} QPS × 600秒)`);
   console.log(`👥 VU配置: 预分配${preAllocatedVUs}个，最大${maxVUs}个 (应对极端响应时间波动)`);
-  console.log('🚀 稳定策略: 科学VU配置 + 连接池优化');
+  console.log('🚀 稳定策略: 科学VU配置 + 高级连接池优化');
   console.log('📊 QPS稳定性: constant-arrival-rate执行器 + 批次控制');
+  console.log('🔗 连接优化: 连接复用 + TLS优化 + VU级连接管理');
+  console.log('🛡️  防护应对: 统一UserAgent + 智能超时 + 连接重置处理');
   console.log('⏱️  预计测试时间: 10分钟');
   return { baseUrl: config.baseUrl };
 }
