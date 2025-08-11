@@ -10,6 +10,8 @@ import { Rate, Trend } from 'k6/metrics';
 // 自定义指标
 const apiCallSuccessRate = new Rate('api_call_success_rate');
 const apiCallDuration = new Trend('api_call_duration');
+const vuUtilization = new Trend('vu_utilization');  // VU使用率监控
+const requestQueue = new Trend('request_queue');    // 请求队列监控
 
 // 从配置文件加载环境配置
 const config = JSON.parse(open('../../../config/env.dev.json'));
@@ -35,9 +37,9 @@ export const options = {
       rate: TARGET_QPS,              // 每秒请求数（QPS）
       timeUnit: '1s',                // 时间单位：1秒
       duration: '5m',                // 测试持续时间：5分钟
-      // QPS稳定性优化：应对极端响应时间波动(15ms-55s)
-      preAllocatedVUs: Math.max(Math.ceil(TARGET_QPS * 60), TARGET_QPS * 3),  
-      maxVUs: Math.max(TARGET_QPS * 100, 10000), // 应对55秒极端响应时间
+      // QPS稳定性优化：科学VU配置，避免过度分配导致的调度混乱
+      preAllocatedVUs: Math.max(Math.ceil(TARGET_QPS * 2.5), 20),  // 保守预分配，避免资源浪费
+      maxVUs: Math.max(TARGET_QPS * 8, 200), // 适度最大值，防止调度器过载
       tags: { test_type: 'fixed_qps' },
     },
   },
@@ -82,7 +84,7 @@ export default function () {
     }),
     { 
       headers,
-              timeout: '120s'  // 设置120秒超时，适应慢响应API
+              timeout: '30s'  // 设置30秒超时，快速释放阻塞VU
     }
   );
 
@@ -104,13 +106,17 @@ export default function () {
   if (createSessionResponse.status === 200) {
     apiCallDuration.add(createSessionResponse.timings.duration);
   }
+  
+  // 记录VU和队列监控指标
+  vuUtilization.add(__VU);  // 当前VU ID作为使用率指标
+  requestQueue.add(createSessionResponse.timings.blocked || 0);  // 请求队列等待时间
 }
 
 // 测试设置阶段
 export function setup() {
   const startTime = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
-  const preAllocatedVUs = Math.max(Math.ceil(TARGET_QPS * 60), TARGET_QPS * 3);
-  const maxVUs = Math.max(TARGET_QPS * 100, 10000);
+  const preAllocatedVUs = Math.max(Math.ceil(TARGET_QPS * 2.5), 20);
+  const maxVUs = Math.max(TARGET_QPS * 8, 200);
   
   console.log('🎯 开始 guest/create-session 固定QPS压力测试...');
   console.log(`🕐 测试开始时间: ${startTime}`);
@@ -119,7 +125,7 @@ export function setup() {
   console.log(`⚡ 目标QPS: ${TARGET_QPS} (可通过 TARGET_QPS 环境变量配置)`);
   console.log(`🔄 预估总请求数: ${TARGET_QPS * 300} 个 (${TARGET_QPS} QPS × 300秒)`);
   console.log(`👥 VU配置: 预分配${preAllocatedVUs}个，最大${maxVUs}个 (应对极端响应时间波动)`);
-  console.log('🚀 稳定策略: 60倍VU预分配，应对55秒极端响应时间');
+  console.log('🚀 稳定策略: 科学VU配置，避免调度器过载和资源竞争');
   console.log('⏱️  预计测试时间: 5分钟');
   return { baseUrl: config.baseUrl };
 }
