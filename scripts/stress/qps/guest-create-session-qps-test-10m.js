@@ -36,13 +36,16 @@ export const options = {
       executor: 'constant-arrival-rate',
       rate: TARGET_QPS,              // 每秒请求数（QPS）
       timeUnit: '1s',                // 时间单位：1秒
-      duration: '10m',                // 测试持续时间：10分钟
+      duration: '10m',               // 测试持续时间：10分钟
       // QPS稳定性优化：科学VU配置，避免过度分配导致的调度混乱
       preAllocatedVUs: Math.max(TARGET_QPS * 3, 1),  // 预留更多缓冲
-      maxVUs: TARGET_QPS * 15, // 15倍配置，平衡性能与资源
+      maxVUs: TARGET_QPS * 15,       // 15倍配置，平衡性能与资源
       tags: { test_type: 'fixed_qps' },
     },
   },
+  // 连接池优化：提高QPS稳定性
+  batch: 1,                          // 每次只发送1个请求，确保精确控制
+  batchPerHost: 1,                   // 每个主机只并发1个请求批次
   // 注释掉阈值设置，只关注QPS稳定性，不验证响应质量
   // thresholds: {
   //   http_req_failed: ['rate<0.01'],
@@ -125,7 +128,8 @@ export function setup() {
   console.log(`⚡ 目标QPS: ${TARGET_QPS} (可通过 TARGET_QPS 环境变量配置)`);
   console.log(`🔄 预估总请求数: ${TARGET_QPS * 600} 个 (${TARGET_QPS} QPS × 600秒)`);
   console.log(`👥 VU配置: 预分配${preAllocatedVUs}个，最大${maxVUs}个 (应对极端响应时间波动)`);
-  console.log('🚀 稳定策略: 科学VU配置，避免调度器过载和资源竞争');
+  console.log('🚀 稳定策略: 科学VU配置 + 连接池优化');
+  console.log('📊 QPS稳定性: constant-arrival-rate执行器 + 批次控制');
   console.log('⏱️  预计测试时间: 10分钟');
   return { baseUrl: config.baseUrl };
 }
