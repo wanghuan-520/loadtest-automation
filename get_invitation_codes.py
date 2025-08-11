@@ -22,7 +22,7 @@ class Config:
     # 用户邀请码获取API（已验证正确）
     INVITATION_CODE_URL = "https://station-developer-dev-staging.aevatar.ai/godgptpressure-client/api/godgpt/invitation/info"
     
-    DEFAULT_WORKERS = 10
+    DEFAULT_WORKERS = 30
     REQUEST_TIMEOUT = 30
     
     # 默认密码（根据实际情况调整）
@@ -60,7 +60,16 @@ class InvitationCodeFetcher:
         self.end_index = end_index
         self.workers = workers
         self.password = password
+        # 优化连接池配置 - 增加最大连接数
         self.session = requests.Session()
+        adapter = requests.adapters.HTTPAdapter(
+            pool_connections=workers,
+            pool_maxsize=workers * 2,
+            max_retries=1,
+            pool_block=False
+        )
+        self.session.mount('http://', adapter)
+        self.session.mount('https://', adapter)
         self.invitation_codes = {}
         self.failed_accounts = []
         self.lock = threading.Lock()

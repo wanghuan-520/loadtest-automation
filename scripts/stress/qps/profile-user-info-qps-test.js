@@ -36,7 +36,7 @@ export const options = {
       timeUnit: '1s',                // 时间单位：1秒
       duration: '5m',                // 测试持续时间：5分钟
       preAllocatedVUs: Math.max(TARGET_QPS * 3, 1),  // 预留更多缓冲
-      maxVUs: TARGET_QPS * 10,        // 最大VU数量（QPS的10倍）
+      maxVUs: TARGET_QPS * 15,        // 最大VU数量（QPS的15倍，平衡性能与资源）
       tags: { test_type: 'fixed_qps_profile_user_info' },
     },
   },
@@ -75,7 +75,7 @@ export default function (data) {
   
   const userInfoParams = {
     headers: userInfoHeaders,
-    timeout: '60s',
+    timeout: '90s',
   };
   
   const userInfoResponse = http.get(userInfoUrl, userInfoParams);

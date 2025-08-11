@@ -9,7 +9,7 @@ import { getAccessToken, setupTest, teardownTest } from '../../utils/auth.js';
 // 示例: k6 run -e TARGET_QPS=25 user-chat-qps-test-2s.js
 //
 // 🔧 性能优化说明：
-// - maxVUs: TARGET_QPS * 10 - 避免VU数量过多导致系统过载
+// - maxVUs: TARGET_QPS * 15 - 平衡性能与资源
 // - preAllocatedVUs: TARGET_QPS * 3 (最少3个) - 考虑长响应时间的VU占用
 // - 超时时间: 30秒 - 平衡响应等待和VU占用时间
 // - SSE响应检查: 兼容JSON和流式响应格式
@@ -59,7 +59,7 @@ export const options = {
       timeUnit: '1s',                // 时间单位：1秒
       duration: '5m',                // 测试持续时间：5分钟
       preAllocatedVUs: Math.max(TARGET_QPS * 3, 1),  // 预留更多缓冲
-      maxVUs: TARGET_QPS * 10,         // 最大VU数量（QPS的10倍）
+      maxVUs: TARGET_QPS * 15,         // 最大VU数量（QPS的15倍，平衡性能与资源）
       tags: { test_type: 'fixed_qps_user_chat_2s' },
     },
   },
@@ -106,7 +106,7 @@ export default function (data) {
   
   const createSessionParams = {
     headers: sessionHeaders,
-    timeout: '60s',  // 设置60秒超时，应对网络波动
+    timeout: '90s',  // 设置90秒超时，应对长响应时间
   };
   
   const createSessionResponse = http.post(createSessionUrl, createSessionPayload, createSessionParams);
@@ -185,7 +185,7 @@ export default function (data) {
   
   const chatParams = {
     headers: chatHeaders,
-    timeout: '60s',  // 设置60秒超时，应对网络波动
+    timeout: '90s',  // 设置90秒超时，应对长响应时间
   };
   
   const chatResponse = http.post(`${data.baseUrl}/gotgpt/chat`, JSON.stringify(chatPayload), chatParams);

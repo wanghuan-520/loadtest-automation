@@ -64,7 +64,7 @@ k6 run -e TARGET_QPS=20 user-chat-fixed-qps-test.js
 - **duration**: 5分钟
 - **rate**: 可通过`TARGET_QPS`环境变量自定义
 - **preAllocatedVUs**: `Math.max(TARGET_QPS * 3, 1)`
-- **maxVUs**: `TARGET_QPS * 10`
+- **maxVUs**: `TARGET_QPS * 15`
 
 ## 📊 性能阈值
 
