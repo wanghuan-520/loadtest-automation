@@ -54,7 +54,7 @@ export const options = {
     max: 'tls1.3'
   },
   dns: {                             // DNS优化配置
-    ttl: '5m',                       // DNS缓存5分钟
+    ttl: '12m',                      // DNS缓存12分钟，覆盖整个测试周期
     select: 'roundRobin',            // 轮询DNS记录
     policy: 'preferIPv4'             // 优先IPv4（减少连接复杂度）
   },
