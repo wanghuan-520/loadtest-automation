@@ -57,7 +57,6 @@ export const options = {
     max: 'tls1.3'
   },
   // 极限性能优化：应对100 QPS连接建立超时
-  httpDebug: 'full',                 // 启用完整HTTP调试（性能分析用）
   blockHostnames: [],                // 不阻止任何主机名
   hosts: {},                         // 主机映射（如需要）
   dns: {                             // DNS优化配置
@@ -151,7 +150,7 @@ export function setup() {
   console.log('📊 QPS稳定性: constant-arrival-rate执行器 + 批次控制');
   console.log('🔗 连接优化: 连接复用 + TLS优化 + DNS缓存 + VU级连接管理');
   console.log('🛡️  防护应对: 统一UserAgent + 120s超时 + 连接建立优化');
-  console.log('⚡ 极限挑战: 100 QPS性能边界探索 + HTTP完整调试');
+  console.log('⚡ 极限挑战: 100 QPS性能边界探索 + DNS智能优化');
   console.log('⏱️  预计测试时间: 10分钟');
   return { baseUrl: config.baseUrl };
 }
