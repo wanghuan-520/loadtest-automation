@@ -9,7 +9,7 @@ import { getAccessToken, setupTest, teardownTest } from '../../utils/auth.js';
 // 完整示例: k6 run -e TARGET_QPS=3 -e ENABLE_THRESHOLDS=true godgpt-voice-chat-qps-test.js
 //
 // 🔧 性能优化说明：
-// - maxVUs: TARGET_QPS * 5 (最少10个) - 语音聊天需要较长处理时间
+// - maxVUs: TARGET_QPS * 10 - 语音聊天需要较长处理时间
 // - preAllocatedVUs: TARGET_QPS (最少5个) - 预分配足够VU避免延迟
 // - 超时时间: 60秒 - 语音聊天处理时间较长
 // - 随机化UserAgent: 避免请求被服务器限制
@@ -77,8 +77,8 @@ export const options = {
       rate: TARGET_QPS,              // 每秒请求数（QPS）
       timeUnit: '1s',                // 时间单位：1秒
       duration: '5m',                // 测试持续时间：5分钟
-      preAllocatedVUs: Math.max(TARGET_QPS, 5),     // 预分配VU数量（至少5个）
-      maxVUs: Math.max(TARGET_QPS * 5, 10),        // 最大VU数量（语音聊天需要更长处理时间）
+      preAllocatedVUs: Math.max(TARGET_QPS, 1),     // 预分配VU数量（至少5个）
+      maxVUs: TARGET_QPS * 10,        // 最大VU数量（QPS的10倍）
       tags: { test_type: 'fixed_qps_voice_chat' },
     },
   },

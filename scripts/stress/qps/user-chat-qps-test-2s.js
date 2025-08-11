@@ -9,7 +9,7 @@ import { getAccessToken, setupTest, teardownTest } from '../../utils/auth.js';
 // 示例: k6 run -e TARGET_QPS=25 user-chat-qps-test-2s.js
 //
 // 🔧 性能优化说明：
-// - maxVUs: TARGET_QPS * 5 (最少10个) - 避免VU数量过多导致系统过载
+// - maxVUs: TARGET_QPS * 10 - 避免VU数量过多导致系统过载
 // - preAllocatedVUs: TARGET_QPS * 3 (最少3个) - 考虑长响应时间的VU占用
 // - 超时时间: 30秒 - 平衡响应等待和VU占用时间
 // - SSE响应检查: 兼容JSON和流式响应格式
@@ -58,8 +58,8 @@ export const options = {
       rate: TARGET_QPS,              // 每秒请求数（QPS）
       timeUnit: '1s',                // 时间单位：1秒
       duration: '5m',                // 测试持续时间：5分钟
-      preAllocatedVUs: Math.max(TARGET_QPS * 3, 3),  // 预分配VU数量（考虑长响应时间，增加到3倍）
-      maxVUs: Math.max(TARGET_QPS * 5, 10),         // 最大VU数量（降低倍数，避免VU暴涨）
+      preAllocatedVUs: Math.max(TARGET_QPS, 1),  // 预分配VU数量（至少为QPS数量）
+      maxVUs: TARGET_QPS * 10,         // 最大VU数量（QPS的10倍）
       tags: { test_type: 'fixed_qps_user_chat_2s' },
     },
   },

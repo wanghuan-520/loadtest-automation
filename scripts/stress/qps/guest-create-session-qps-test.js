@@ -38,8 +38,8 @@ export const options = {
       timeUnit: '1s',                // 时间单位：1秒
       duration: '5m',                // 测试持续时间：5分钟
       // QPS稳定性优化：科学VU配置，避免过度分配导致的调度混乱
-      preAllocatedVUs: Math.max(Math.ceil(TARGET_QPS * 2.5), 20),  // 保守预分配，避免资源浪费
-      maxVUs: Math.max(TARGET_QPS * 8, 200), // 适度最大值，防止调度器过载
+      preAllocatedVUs: Math.max(TARGET_QPS, 1),  // 预分配VU数量（至少为QPS数量）
+      maxVUs: TARGET_QPS * 10, // 适度最大值，防止调度器过载
       tags: { test_type: 'fixed_qps' },
     },
   },
@@ -116,7 +116,7 @@ export default function () {
 export function setup() {
   const startTime = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
   const preAllocatedVUs = Math.max(Math.ceil(TARGET_QPS * 2.5), 20);
-  const maxVUs = Math.max(TARGET_QPS * 8, 200);
+  const maxVUs = TARGET_QPS * 10;
   
   console.log('🎯 开始 guest/create-session 固定QPS压力测试...');
   console.log(`🕐 测试开始时间: ${startTime}`);

@@ -67,7 +67,7 @@ export const options = {
       timeUnit: '1s',                // 时间单位：1秒
       duration: '5m',                // 测试持续时间：5分钟
       preAllocatedVUs: Math.max(TARGET_QPS, 1),  // 预分配VU数量（至少为QPS数量）
-      maxVUs: TARGET_QPS * 3,        // 最大VU数量（QPS的3倍以防不够用）
+      maxVUs: TARGET_QPS * 10,        // 最大VU数量（QPS的10倍）
       tags: { test_type: 'fixed_qps' },
     },
   },
