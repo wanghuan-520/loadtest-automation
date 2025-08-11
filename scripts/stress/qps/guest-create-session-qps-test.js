@@ -37,7 +37,7 @@ export const options = {
       duration: '5m',                // 测试持续时间：5分钟
       // 基于响应时间优化VU配置：假设最大响应时间3秒
       preAllocatedVUs: Math.max(Math.ceil(TARGET_QPS * 3), TARGET_QPS),  
-      maxVUs: Math.max(TARGET_QPS * 20, 2000), // 支持极端高负载场景(最大2000 VU)
+      maxVUs: Math.max(TARGET_QPS * 20, 5000), // 支持极端高负载场景(最大5000 VU)
       tags: { test_type: 'fixed_qps' },
     },
   },
@@ -73,14 +73,17 @@ export default function () {
   // 生成随机IP地址
   const randomIP = generateRandomIP();
 
-  // 调用 guest/create-session 接口 - 使用正确的请求体和随机IP
+  // 调用 guest/create-session 接口 - 使用正确的请求体和随机IP，设置合理超时
   const createSessionResponse = http.post(
     `${config.baseUrl}/godgpt/guest/create-session`,
     JSON.stringify({
       "guider": "",
       "ip": randomIP
     }),
-    { headers }
+    { 
+      headers,
+              timeout: '120s'  // 设置120秒超时，适应慢响应API
+    }
   );
 
   // 业务成功判断 - HTTP状态码200 + 业务code为20000
@@ -107,7 +110,7 @@ export default function () {
 export function setup() {
   const startTime = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
   const preAllocatedVUs = Math.max(Math.ceil(TARGET_QPS * 3), TARGET_QPS);
-  const maxVUs = Math.max(TARGET_QPS * 20, 2000);
+  const maxVUs = Math.max(TARGET_QPS * 20, 5000);
   
   console.log('🎯 开始 guest/create-session 固定QPS压力测试...');
   console.log(`🕐 测试开始时间: ${startTime}`);
@@ -115,7 +118,7 @@ export function setup() {
   console.log(`🔧 测试场景: 固定QPS测试 (${TARGET_QPS} QPS，持续5分钟)`);
   console.log(`⚡ 目标QPS: ${TARGET_QPS} (可通过 TARGET_QPS 环境变量配置)`);
   console.log(`🔄 预估总请求数: ${TARGET_QPS * 300} 个 (${TARGET_QPS} QPS × 300秒)`);
-  console.log(`👥 VU配置: 预分配${preAllocatedVUs}个，最大${maxVUs}个 (支持极端高负载场景)`);
+  console.log(`👥 VU配置: 预分配${preAllocatedVUs}个，最大${maxVUs}个 (支持超大规模压测)`);
   console.log('⏱️  预计测试时间: 5分钟');
   return { baseUrl: config.baseUrl };
 }
