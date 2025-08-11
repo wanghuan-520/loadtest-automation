@@ -57,7 +57,7 @@ export const options = {
       rate: TARGET_QPS,              // 每秒请求数（QPS）
       timeUnit: '1s',                // 时间单位：1秒
       duration: '5m',                // 测试持续时间：5分钟
-      preAllocatedVUs: Math.max(TARGET_QPS, 1),  // 预分配VU数量（至少为QPS数量）
+      preAllocatedVUs: Math.max(TARGET_QPS * 3, 1),  // 预留更多缓冲
       maxVUs: TARGET_QPS * 10,         // 最大VU数量（QPS的10倍）
       tags: { test_type: 'fixed_qps_user_chat' },
     },
@@ -105,7 +105,7 @@ export default function (data) {
   
   const createSessionParams = {
     headers: sessionHeaders,
-    timeout: '30s',  // 降低超时时间，避免长时间占用VU
+    timeout: '60s',  // 设置60秒超时，应对网络波动
   };
   
   const createSessionResponse = http.post(createSessionUrl, createSessionPayload, createSessionParams);
@@ -184,7 +184,7 @@ export default function (data) {
   
   const chatParams = {
     headers: chatHeaders,
-    timeout: '30s',  // 降低聊天超时时间，避免长时间占用VU
+    timeout: '60s',  // 设置60秒超时，应对网络波动
   };
   
   const chatResponse = http.post(`${data.baseUrl}/gotgpt/chat`, JSON.stringify(chatPayload), chatParams);

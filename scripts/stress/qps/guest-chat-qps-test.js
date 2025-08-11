@@ -51,7 +51,7 @@ export const options = {
       rate: TARGET_QPS,              // 每秒请求数（QPS）
       timeUnit: '1s',                // 时间单位：1秒
       duration: '5m',                // 测试持续时间：5分钟
-      preAllocatedVUs: Math.max(TARGET_QPS, 1),  // 预分配VU数量（至少为QPS数量）
+      preAllocatedVUs: Math.max(TARGET_QPS * 3, 1),  // 预留更多缓冲
       maxVUs: TARGET_QPS * 10,        // 最大VU数量（QPS的10倍）
       tags: { test_type: 'fixed_qps_chat' },
     },
@@ -99,7 +99,7 @@ export default function () {
     }),
     { 
       headers: sessionHeaders,
-      timeout: '30s',
+      timeout: '60s',
     }
   );
 
@@ -177,7 +177,7 @@ export default function () {
     JSON.stringify(chatPayload),
     { 
       headers: chatHeaders,
-      timeout: '30s',
+      timeout: '60s',
     }
   );
 

@@ -10,7 +10,7 @@ import { getAccessToken, setupTest, teardownTest } from '../../utils/auth.js';
 //
 // 🔧 性能优化说明：
 // - maxVUs: TARGET_QPS * 10 - 语音聊天需要较长处理时间
-// - preAllocatedVUs: TARGET_QPS (最少5个) - 预分配足够VU避免延迟
+// - preAllocatedVUs: TARGET_QPS * 3 - 预分配足够VU避免延迟
 // - 超时时间: 60秒 - 语音聊天处理时间较长
 // - 随机化UserAgent: 避免请求被服务器限制
 // - 固定会话ID: 使用固定sessionId进行稳定性测试
@@ -77,7 +77,7 @@ export const options = {
       rate: TARGET_QPS,              // 每秒请求数（QPS）
       timeUnit: '1s',                // 时间单位：1秒
       duration: '5m',                // 测试持续时间：5分钟
-      preAllocatedVUs: Math.max(TARGET_QPS, 1),     // 预分配VU数量（至少5个）
+      preAllocatedVUs: Math.max(TARGET_QPS * 3, 1),     // 预留更多缓冲
       maxVUs: TARGET_QPS * 10,        // 最大VU数量（QPS的10倍）
       tags: { test_type: 'fixed_qps_voice_chat' },
     },
@@ -144,7 +144,7 @@ export default function (data) {
   
   const voiceChatParams = {
     headers: voiceChatHeaders,
-    timeout: '120s', // 语音聊天调整为2分钟超时，适应AI处理时间
+    timeout: '60s', // 统一60秒超时，应对网络波动
   };
 
   // 发送语音聊天请求 - 添加详细的错误处理
