@@ -48,17 +48,11 @@ export const options = {
   batchPerHost: 1,                   // 每个主机只并发1个请求批次
   noConnectionReuse: false,          // 启用连接复用，减少新连接建立
   userAgent: 'k6-loadtest/1.0',      // 统一User-Agent
-  // 高级连接池优化：应对100 QPS极限挑战
-  discardResponseBodies: false,      // 保留响应体用于业务验证
-  noVUConnectionReuse: false,        // VU级连接复用启用
-  insecureSkipTLSVerify: false,      // 保持TLS验证（生产环境安全）
+  // 高级性能优化：TLS和DNS优化
   tlsVersion: {                      // TLS版本优化
     min: 'tls1.2',
     max: 'tls1.3'
   },
-  // 极限性能优化：应对100 QPS连接建立超时
-  blockHostnames: [],                // 不阻止任何主机名
-  hosts: {},                         // 主机映射（如需要）
   dns: {                             // DNS优化配置
     ttl: '5m',                       // DNS缓存5分钟
     select: 'roundRobin',            // 轮询DNS记录
