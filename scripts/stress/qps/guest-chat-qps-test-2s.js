@@ -62,9 +62,9 @@ export const options = {
       duration: '10m',               
       // 🎯 串行流程VU配置：基于create-session + sleep(2) + chat总耗时
       // 完整流程：session(38ms) + sleep(2s) + chat(1677ms) = 3.715秒
-      // 40 QPS需要VU数: 40 × 3.715 = 149个VU
-      preAllocatedVUs: Math.max(Math.ceil(TARGET_QPS * 4), 20),     // 4倍预分配，充足VU保证QPS
-      maxVUs: Math.max(Math.ceil(TARGET_QPS * 5), 30),              // 5倍最大值，应对波动和重试
+      // 50 QPS需要VU数: 50 × 4 = 200个VU（考虑网络延迟和重试）
+      preAllocatedVUs: Math.max(Math.ceil(TARGET_QPS * 4), 50),     // 4倍预分配，充足VU保证QPS
+      maxVUs: Math.max(Math.ceil(TARGET_QPS * 6), 200),             // 6倍最大值，应对波动和重试
       tags: { test_type: 'complete_flow' },
     },
   },
@@ -118,7 +118,7 @@ export default function () {
     }),
     { 
       headers: sessionHeaders,
-      timeout: '30s',                      // 优化：session创建超时从90s减少到30s
+      timeout: '60s',                      // 增加：session创建超时调整为60s，应对网络波动
     }
   );
 
@@ -144,7 +144,16 @@ export default function () {
 
   // 如果会话创建失败，打印错误信息并跳过后续步骤
   if (!isSessionCreated) {
-    console.error(`❌ 会话创建失败 - HTTP状态码: ${createSessionResponse.status}, 响应体: ${createSessionResponse.body}`);
+    // 区分不同类型的错误
+    if (createSessionResponse.status === 0) {
+      // 连接重置或超时错误，简化日志输出
+      if (Math.random() < 0.1) { // 只显示10%的连接错误详情
+        console.error(`❌ 连接错误 (仅显示10%详情): ${createSessionResponse.error || '连接重置'}`);
+      }
+    } else {
+      // 其他HTTP错误正常显示
+      console.error(`❌ 会话创建失败 - HTTP状态码: ${createSessionResponse.status}, 响应体: ${createSessionResponse.body}`);
+    }
     return;
   }
 
