@@ -20,6 +20,8 @@ const sessionSuccessCounter = new Counter('session_success_total');
 const chatAttemptCounter = new Counter('chat_attempt_total');
 const chatSuccessCounter = new Counter('chat_success_total');
 
+// 移除session池，恢复原始串行逻辑
+
 
 // 从配置文件加载环境配置和测试数据
 const config = JSON.parse(open('../../../config/env.dev.json'));
@@ -49,21 +51,21 @@ function generateRandomUserAgent() {
 
 
 
-// 固定QPS压力测试场景配置
+// 串行业务逻辑QPS测试场景配置
 export const options = {
   scenarios: {
-    // 固定QPS测试 - 恒定请求速率
-    fixed_qps: {
+    // 完整业务流程测试 - create-session → sleep(2s) → chat
+    complete_flow: {
       executor: 'constant-arrival-rate',
-      rate: TARGET_QPS,              // 每秒请求数（QPS）
-      timeUnit: '1s',                // 时间单位：1秒
-      duration: '10m',               // 测试持续时间：10分钟
-             // 🎯 完整流程QPS配置：基于create-session + sleep(2) + chat总耗时3.7秒
-       // 实际流程：session(38ms) + sleep(2s) + chat(1677ms) = 3.715秒
-       // 40 QPS需要VU数: 40 × 3.715 = 149个VU
-       preAllocatedVUs: Math.max(Math.ceil(TARGET_QPS * 4), 20),    // 4倍预分配，充足VU保证QPS
-       maxVUs: Math.max(Math.ceil(TARGET_QPS * 5), 30),             // 5倍最大值，应对波动(40QPS=200个VU)
-      tags: { test_type: 'fixed_qps_chat' },
+      rate: TARGET_QPS,              // 每秒启动的完整流程数
+      timeUnit: '1s',                
+      duration: '10m',               
+      // 🎯 串行流程VU配置：基于create-session + sleep(2) + chat总耗时
+      // 完整流程：session(38ms) + sleep(2s) + chat(1677ms) = 3.715秒
+      // 40 QPS需要VU数: 40 × 3.715 = 149个VU
+      preAllocatedVUs: Math.max(Math.ceil(TARGET_QPS * 4), 20),     // 4倍预分配，充足VU保证QPS
+      maxVUs: Math.max(Math.ceil(TARGET_QPS * 5), 30),              // 5倍最大值，应对波动和重试
+      tags: { test_type: 'complete_flow' },
     },
   },
   // 连接池优化：提高QPS稳定性，减少连接重置
@@ -82,7 +84,7 @@ export const options = {
   // },
 };
 
-// 测试主函数
+// 完整业务流程测试函数：create-session → sleep(2s) → chat
 export default function () {
   
   // 生成随机信息避免聊天次数限制
@@ -114,10 +116,10 @@ export default function () {
       guider: "",
       ip: randomIP
     }),
-         { 
-       headers: sessionHeaders,
-       timeout: '30s',                      // 优化：session创建超时从90s减少到30s
-     }
+    { 
+      headers: sessionHeaders,
+      timeout: '30s',                      // 优化：session创建超时从90s减少到30s
+    }
   );
 
   // 会话创建业务成功判断 - HTTP状态码200 + 业务code为20000
@@ -159,7 +161,7 @@ export default function () {
     return;
   }
 
-  // 两个接口调用之间添加1秒延迟
+  // 🔄 业务验证关键：两个接口调用之间添加2秒延迟
   sleep(2);
 
   // 步骤2：发送聊天消息
@@ -235,8 +237,6 @@ export default function () {
     };
   }
 
-
-
   // 验证聊天响应 - HTTP状态码200 + 业务code判断（聊天响应可能是流式，需兼容处理）
   const isChatSuccess = check(chatResponse, {
     'HTTP状态码200': (r) => r.status === 200,
@@ -276,8 +276,6 @@ export default function () {
     chatSuccessCounter.add(1); // 统计chat成功次数
     chatResponseDuration.add(chatResponse.timings.duration);
   }
-  
-
 }
 
 // 测试设置阶段
@@ -286,16 +284,18 @@ export function setup() {
   const preAllocatedVUs = Math.max(Math.ceil(TARGET_QPS * 4), 20);
   const maxVUs = Math.max(Math.ceil(TARGET_QPS * 5), 30);
   
-  console.log('🎯 开始 guest/chat 固定QPS压力测试...');
+  console.log('🎯 开始 guest/chat 完整业务流程QPS压力测试...');
   console.log(`🕐 测试开始时间: ${startTime}`);
   console.log(`📡 测试目标: ${config.baseUrl}/godgpt/guest/chat`);
-  console.log(`🔧 测试场景: 固定QPS测试 (${TARGET_QPS} QPS，持续10分钟)`);
-  console.log(`⚡ 目标QPS: ${TARGET_QPS} (可通过 TARGET_QPS 环境变量配置)`);
-  console.log(`🔄 预估总请求数: ${TARGET_QPS * 600} 个 (${TARGET_QPS} QPS × 600秒)`);
+  console.log(`🔧 测试场景: 串行业务流程测试 (${TARGET_QPS} QPS，持续10分钟)`);
+  console.log(`⚡ 目标QPS: ${TARGET_QPS} 个完整流程/秒`);
+  console.log(`🔄 预估总请求数: ${TARGET_QPS * 600} 个流程 = ${TARGET_QPS * 2 * 600} 次API调用`);
   console.log(`👥 VU配置: 预分配 ${preAllocatedVUs} 个，最大 ${maxVUs} 个`);
-  console.log(`⏱️  预计单次耗时: ~3.7秒 (session+2s延迟+chat)`);
-  console.log(`🚀 QPS优化: VU充足配置(${maxVUs}个) + 超时优化(session 30s, chat 120s) + 重试机制`);
-  console.log('🌊 测试流程: create-session → sleep(2s) → chat (SSE流式响应, 最多重试1次)');
+  console.log(`⏱️  预计单次耗时: ~3.7秒 (session + sleep(2s) + chat)`);
+  console.log(`🚀 QPS优化: VU充足配置(${maxVUs}个) + 超时优化 + 重试机制`);
+  console.log('🔄 完整业务流程验证: create-session → sleep(2s) → chat');
+  console.log('⚡ 业务验证重点: 2秒延迟对系统性能的具体影响');
+  console.log('📊 期望结果: 40个流程 = 40次session + 40次chat = 80次API调用');
   console.log('⏱️  预计测试时间: 10分钟');
   return { baseUrl: config.baseUrl };
 }
@@ -303,9 +303,11 @@ export function setup() {
 // 测试清理阶段
 export function teardown(data) {
   const endTime = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
-  console.log('✅ guest/chat 固定QPS压力测试完成');
+  console.log('✅ guest/chat 完整业务流程QPS压力测试完成');
   console.log(`🕛 测试结束时间: ${endTime}`);
-  console.log('🔍 关键指标：会话创建成功率、聊天响应成功率、端到端响应时间、QPS稳定性');
-  console.log('📊 QPS诊断指标：session_attempt_total, session_success_total, chat_attempt_total, chat_success_total');
-  console.log('📈 请分析QPS是否稳定、响应时间分布和系统资源使用情况');
+  console.log('🔍 关键指标：完整流程成功率、session+chat业务连续性、QPS稳定性');
+  console.log('📊 QPS验证指标：session_attempt_total, session_success_total, chat_attempt_total, chat_success_total');
+  console.log(`🎯 期望结果: ${TARGET_QPS}个完整流程 = ${TARGET_QPS}次session + ${TARGET_QPS}次chat = ${TARGET_QPS * 2}次API调用`);
+  console.log('📈 业务流程验证：1)session创建成功率 2)sleep(2s)延迟影响 3)chat依赖session的完整性');
+  console.log('💡 串行业务完整性：验证create-session → sleep(2s) → chat流程在压力下的表现');
 } 
