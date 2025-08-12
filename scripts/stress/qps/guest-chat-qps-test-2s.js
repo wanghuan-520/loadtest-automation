@@ -13,6 +13,13 @@ const sessionCreationDuration = new Trend('session_creation_duration');
 const chatResponseRate = new Rate('chat_response_success_rate');
 const chatResponseDuration = new Trend('chat_response_duration');
 
+// QPS统计计数器
+import { Counter } from 'k6/metrics';
+const sessionAttemptCounter = new Counter('session_attempt_total');
+const sessionSuccessCounter = new Counter('session_success_total');
+const chatAttemptCounter = new Counter('chat_attempt_total');
+const chatSuccessCounter = new Counter('chat_success_total');
+
 
 // 从配置文件加载环境配置和测试数据
 const config = JSON.parse(open('../../../config/env.dev.json'));
@@ -99,6 +106,8 @@ export default function () {
   };
   
   // 步骤1：创建会话 - 使用正确的请求体和随机信息
+  sessionAttemptCounter.add(1); // 统计session尝试次数
+  
   const createSessionResponse = http.post(
     `${config.baseUrl}/godgpt/guest/create-session`,
     JSON.stringify({
@@ -127,6 +136,7 @@ export default function () {
   // 记录会话创建指标 - 只有HTTP200且业务code为20000才算成功
   sessionCreationRate.add(isSessionCreated);
   if (isSessionCreated) {
+    sessionSuccessCounter.add(1); // 统计session成功次数
     sessionCreationDuration.add(createSessionResponse.timings.duration);
   }
 
@@ -181,6 +191,8 @@ export default function () {
   };
 
   // 添加重试机制处理超时问题
+  chatAttemptCounter.add(1); // 统计chat尝试次数
+  
   let chatResponse;
   let retryCount = 0;
   const maxRetries = 1;  // 最多重试1次，避免过度重试影响QPS
@@ -261,6 +273,7 @@ export default function () {
   // 记录自定义指标 - 只有业务成功才计入成功
   chatResponseRate.add(isChatSuccess);
   if (isChatSuccess) {
+    chatSuccessCounter.add(1); // 统计chat成功次数
     chatResponseDuration.add(chatResponse.timings.duration);
   }
   
@@ -293,5 +306,6 @@ export function teardown(data) {
   console.log('✅ guest/chat 固定QPS压力测试完成');
   console.log(`🕛 测试结束时间: ${endTime}`);
   console.log('🔍 关键指标：会话创建成功率、聊天响应成功率、端到端响应时间、QPS稳定性');
+  console.log('📊 QPS诊断指标：session_attempt_total, session_success_total, chat_attempt_total, chat_success_total');
   console.log('📈 请分析QPS是否稳定、响应时间分布和系统资源使用情况');
 } 
