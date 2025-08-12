@@ -90,8 +90,8 @@ export const options = {
   noConnectionReuse: false,          // 启用连接复用，减少新连接建立
   userAgent: 'k6-loadtest/1.0',      // 统一User-Agent
   // 全局超时配置：防止请求长时间阻塞
-  httpDebug: 'full',                 // 启用HTTP调试（可选）
   timeout: '120s',                   // 全局超时：120秒
+  // httpDebug: 'full',              // 调试时可启用，压测时建议关闭以确保准确性
   // 可选的性能阈值 - 可通过环境变量 ENABLE_THRESHOLDS=true 启用
   thresholds: __ENV.ENABLE_THRESHOLDS ? {
     http_req_failed: ['rate<0.10'],                    // HTTP失败率小于10% (语音处理较重，适当放宽)
@@ -156,11 +156,11 @@ export default function (data) {
   const voiceChatParams = {
     headers: voiceChatHeaders,
     timeout: '120s', // 设置120秒超时，应对语音处理长响应时间
-    // 增加响应式配置，提高稳定性
+    // 响应配置：确保压测准确性
     responseType: 'text',            // 明确响应类型
-    compression: 'gzip',             // 启用压缩
-    discardResponseBodies: false,    // 保留响应体用于分析
+    discardResponseBodies: false,    // 保留响应体用于分析和验证
     maxRedirects: 3,                 // 最大重定向次数
+    // compression: 'gzip',          // 可选：如果真实环境支持gzip可启用
   };
 
   // 发送语音聊天请求 - 添加详细的错误处理
