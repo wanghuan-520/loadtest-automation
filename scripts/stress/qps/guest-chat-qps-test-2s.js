@@ -51,28 +51,19 @@ export const options = {
       rate: TARGET_QPS,              // 每秒请求数（QPS）
       timeUnit: '1s',                // 时间单位：1秒
       duration: '10m',               // 测试持续时间：10分钟
-      // 🎯 重新优化VU配置：考虑重试机制的额外耗时
-      // 基础耗时：session(249ms) + sleep(2s) + chat(1677ms) ≈ 3.9秒
-      // 重试耗时：最多2次重试 + 重试间隔 ≈ 最多+4.4秒
-      // 总耗时：3.9秒 + 4.4秒 = 8.3秒（最坏情况）
-      // 实际平均：约6秒（大部分请求不需要重试）
-      preAllocatedVUs: Math.max(Math.ceil(TARGET_QPS * 7), 15),     // 7倍预分配（考虑重试）
-      maxVUs: Math.max(Math.ceil(TARGET_QPS * 10), 30),            // 10倍最大值（应对重试峰值）
+             // 🎯 完整流程QPS配置：基于create-session + sleep(2) + chat总耗时3.7秒
+       // 实际流程：session(38ms) + sleep(2s) + chat(1677ms) = 3.715秒
+       // 40 QPS需要VU数: 40 × 3.715 = 149个VU
+       preAllocatedVUs: Math.max(Math.ceil(TARGET_QPS * 4), 20),    // 4倍预分配，充足VU保证QPS
+       maxVUs: Math.max(Math.ceil(TARGET_QPS * 5), 30),             // 5倍最大值，应对波动(40QPS=200个VU)
       tags: { test_type: 'fixed_qps_chat' },
     },
   },
-  // 连接池优化：提高QPS稳定性，减少连接重置  
+  // 连接池优化：提高QPS稳定性，减少连接重置
   batch: 1,                          // 每次只发送1个请求，确保精确控制
   batchPerHost: 1,                   // 每个主机只并发1个请求批次
   noConnectionReuse: false,          // 启用连接复用，减少新连接建立
-  noVUConnectionReuse: false,        // 启用VU内连接复用，提升高QPS性能
   userAgent: 'k6-loadtest/1.0',      // 统一User-Agent
-  // 连接稳定性优化配置
-  discardResponseBodies: false,      // 保留响应体用于业务验证
-  timeout: '120s',                   // 增加全局超时到120秒
-  // 降低连接压力的配置
-  rps: TARGET_QPS,                   // 显式限制RPS，防止突发流量
-  userAgent: 'k6-guest-chat/1.0',    // 更明确的User-Agent
   // 注释掉阈值设置，只关注QPS稳定性，不验证响应质量
   // thresholds: {
   //   http_req_failed: ['rate<0.01'],
@@ -114,10 +105,10 @@ export default function () {
       guider: "",
       ip: randomIP
     }),
-    { 
-      headers: sessionHeaders,
-      timeout: '90s',
-    }
+         { 
+       headers: sessionHeaders,
+       timeout: '30s',                      // 优化：session创建超时从90s减少到30s
+     }
   );
 
   // 会话创建业务成功判断 - HTTP状态码200 + 业务code为20000
@@ -158,7 +149,7 @@ export default function () {
     return;
   }
 
-  // 两个接口调用之间添加2秒延迟
+  // 两个接口调用之间添加1秒延迟
   sleep(2);
 
   // 步骤2：发送聊天消息
@@ -189,47 +180,14 @@ export default function () {
     ip: randomIP
   };
 
-  // 添加重试机制处理连接重置问题
-  let chatResponse;
-  let retryCount = 0;
-  const maxRetries = 2;
-  
-  while (retryCount <= maxRetries) {
-    try {
-      chatResponse = http.post(
-        `${config.baseUrl}/godgpt/guest/chat`,
-        JSON.stringify(chatPayload),
-        { 
-          headers: chatHeaders,
-          timeout: '120s',               // 增加超时时间
-          responseType: 'text',          // 明确响应类型
-        }
-      );
-      
-      // 如果请求成功或者是业务错误（非连接问题），跳出重试循环
-      if (chatResponse.status !== 0) {
-        break;
-      }
-      
-    } catch (error) {
-      console.log(`🔄 请求重试 ${retryCount + 1}/${maxRetries + 1}: ${error.message}`);
-    }
-    
-    retryCount++;
-    if (retryCount <= maxRetries) {
-      sleep(0.5); // 重试前等待500ms
-    }
-  }
-  
-  // 如果所有重试都失败，创建失败响应
-  if (!chatResponse || chatResponse.status === 0) {
-    chatResponse = {
-      status: 0,
-      body: null,
-      headers: {},
-      timings: { duration: 0 }
-    };
-  }
+  const chatResponse = http.post(
+    `${config.baseUrl}/godgpt/guest/chat`,
+    JSON.stringify(chatPayload),
+         { 
+       headers: chatHeaders,
+       timeout: '60s',                      // 优化：chat超时从90s减少到60s
+     }
+  );
 
 
 
@@ -250,20 +208,11 @@ export default function () {
     }
   });
 
-  // 如果聊天失败，打印精简错误信息（减少日志噪音）
+  // 如果聊天失败，打印错误信息
   if (!isChatSuccess) {
-    if (chatResponse.status === 0) {
-      // 连接重置错误，只统计不详细打印（避免日志爆炸）
-      if (Math.random() < 0.1) { // 只有10%的连接重置错误会打印详情
-        console.error(`❌ 连接重置错误 (仅显示10%的错误详情)`);
-      }
-    } else {
-      // 其他类型错误正常打印
-      console.error(`❌ 聊天响应失败 - HTTP状态码: ${chatResponse.status}`);
-      if (chatResponse.status >= 500) {
-        console.error(`服务器错误: ${chatResponse.body}`);
-      }
-    }
+    console.error(`❌ 聊天响应失败 - HTTP状态码: ${chatResponse.status}`);
+    console.error(`完整响应体: ${chatResponse.body}`);
+    console.error(`响应头: ${JSON.stringify(chatResponse.headers, null, 2)}`);
   }
 
   // 记录自定义指标 - 只有业务成功才计入成功
@@ -278,8 +227,8 @@ export default function () {
 // 测试设置阶段
 export function setup() {
   const startTime = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
-  const preAllocatedVUs = Math.max(Math.ceil(TARGET_QPS * 7), 15);
-  const maxVUs = Math.max(Math.ceil(TARGET_QPS * 10), 30);
+  const preAllocatedVUs = Math.max(Math.ceil(TARGET_QPS * 4), 20);
+  const maxVUs = Math.max(Math.ceil(TARGET_QPS * 5), 30);
   
   console.log('🎯 开始 guest/chat 固定QPS压力测试...');
   console.log(`🕐 测试开始时间: ${startTime}`);
@@ -288,10 +237,9 @@ export function setup() {
   console.log(`⚡ 目标QPS: ${TARGET_QPS} (可通过 TARGET_QPS 环境变量配置)`);
   console.log(`🔄 预估总请求数: ${TARGET_QPS * 600} 个 (${TARGET_QPS} QPS × 600秒)`);
   console.log(`👥 VU配置: 预分配 ${preAllocatedVUs} 个，最大 ${maxVUs} 个`);
-  console.log(`⏱️  预计单次耗时: ~6秒 (基础3.9秒 + 重试最多4.4秒)`);
-  console.log(`🔧 稳定性优化: 重试机制(最多3次), 120秒超时, 减少日志噪音`);
-  console.log(`🎯 高QPS优化: ${TARGET_QPS > 50 ? '启用延迟抖动' : '标准延迟模式'}`);
-  console.log('🌊 测试流程: create-session → sleep(2s+抖动) → chat (SSE流式响应)');
+  console.log(`⏱️  预计单次耗时: ~3.2秒 (session+1.5s延迟+chat)`);
+  console.log(`🚀 QPS优化: VU充足配置 + 缩短延迟(2s→1.5s) + 优化超时设置`);
+  console.log('🌊 测试流程: create-session → sleep(1.5s) → chat (SSE流式响应)');
   console.log('⏱️  预计测试时间: 10分钟');
   return { baseUrl: config.baseUrl };
 }
