@@ -36,9 +36,10 @@ export const options = {
       rate: TARGET_QPS,              // 每秒请求数（QPS）
       timeUnit: '1s',                // 时间单位：1秒
       duration: '10m',               // 测试持续时间：10分钟
-      // 🎯 QPS超稳定配置：精确VU分配，避免调度器过载
-      preAllocatedVUs: Math.min(Math.max(TARGET_QPS * 2, 10), 200),  // 2倍预分配，上限200
-      maxVUs: Math.min(Math.max(TARGET_QPS * 4, 20), 400),           // 4倍最大值，上限400
+      // 🎯 QPS超稳定配置：基于响应时间动态调整VU分配
+      // 考虑到平均响应时间789ms，需要更多VU来维持稳定QPS
+      preAllocatedVUs: Math.min(Math.max(TARGET_QPS * 3, 15), 300),  // 3倍预分配，考虑响应延迟
+      maxVUs: Math.min(Math.max(TARGET_QPS * 6, 30), 600),           // 6倍最大值，应对延迟波动
       tags: { test_type: 'fixed_qps_ultra_stable' },
     },
   },
@@ -121,12 +122,13 @@ export default function () {
 // 测试设置阶段
 export function setup() {
   const startTime = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
-  const preAllocatedVUs = Math.min(Math.max(TARGET_QPS * 2, 10), 200);
-  const maxVUs = Math.min(Math.max(TARGET_QPS * 4, 20), 400);
+  const preAllocatedVUs = Math.min(Math.max(TARGET_QPS * 3, 15), 300);
+  const maxVUs = Math.min(Math.max(TARGET_QPS * 6, 30), 600);
   
   console.log('🎯 开始 guest/create-session 超稳定QPS压力测试...');
   console.log(`⚡ 目标QPS: ${TARGET_QPS} | 预分配VU: ${preAllocatedVUs} | 最大VU: ${maxVUs}`);
   console.log(`🕐 测试时间: ${startTime} (持续10分钟)`);
+  console.log('🔧 优化策略: 基于789ms响应时间优化VU配置，减少dropped_iterations');
   console.log('💡 提示: 使用 k6 run --quiet 命令减少调试输出');
   
   return { baseUrl: config.baseUrl };
