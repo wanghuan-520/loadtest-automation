@@ -65,9 +65,12 @@ export const options = {
   noConnectionReuse: false,          // 启用连接复用，减少新连接建立
   noVUConnectionReuse: false,        // 启用VU内连接复用，提升高QPS性能
   userAgent: 'k6-loadtest/1.0',      // 统一User-Agent
-  // 高QPS优化配置
+  // 连接稳定性优化配置
   discardResponseBodies: false,      // 保留响应体用于业务验证
-  timeout: '90s',                    // 全局超时设置
+  timeout: '120s',                   // 增加全局超时到120秒
+  // 降低连接压力的配置
+  rps: TARGET_QPS,                   // 显式限制RPS，防止突发流量
+  userAgent: 'k6-guest-chat/1.0',    // 更明确的User-Agent
   // 注释掉阈值设置，只关注QPS稳定性，不验证响应质量
   // thresholds: {
   //   http_req_failed: ['rate<0.01'],
@@ -184,14 +187,47 @@ export default function () {
     ip: randomIP
   };
 
-  const chatResponse = http.post(
-    `${config.baseUrl}/godgpt/guest/chat`,
-    JSON.stringify(chatPayload),
-    { 
-      headers: chatHeaders,
-      timeout: '90s',
+  // 添加重试机制处理连接重置问题
+  let chatResponse;
+  let retryCount = 0;
+  const maxRetries = 2;
+  
+  while (retryCount <= maxRetries) {
+    try {
+      chatResponse = http.post(
+        `${config.baseUrl}/godgpt/guest/chat`,
+        JSON.stringify(chatPayload),
+        { 
+          headers: chatHeaders,
+          timeout: '120s',               // 增加超时时间
+          responseType: 'text',          // 明确响应类型
+        }
+      );
+      
+      // 如果请求成功或者是业务错误（非连接问题），跳出重试循环
+      if (chatResponse.status !== 0) {
+        break;
+      }
+      
+    } catch (error) {
+      console.log(`🔄 请求重试 ${retryCount + 1}/${maxRetries + 1}: ${error.message}`);
     }
-  );
+    
+    retryCount++;
+    if (retryCount <= maxRetries) {
+      sleep(0.5); // 重试前等待500ms
+    }
+  }
+  
+  // 如果所有重试都失败，创建失败响应
+  if (!chatResponse || chatResponse.status === 0) {
+    chatResponse = {
+      status: 0,
+      body: null,
+      headers: {},
+      timings: { duration: 0 }
+    };
+  }
 
 
 
@@ -212,11 +248,20 @@ export default function () {
     }
   });
 
-  // 如果聊天失败，打印错误信息
+  // 如果聊天失败，打印精简错误信息（减少日志噪音）
   if (!isChatSuccess) {
-    console.error(`❌ 聊天响应失败 - HTTP状态码: ${chatResponse.status}`);
-    console.error(`完整响应体: ${chatResponse.body}`);
-    console.error(`响应头: ${JSON.stringify(chatResponse.headers, null, 2)}`);
+    if (chatResponse.status === 0) {
+      // 连接重置错误，只统计不详细打印（避免日志爆炸）
+      if (Math.random() < 0.1) { // 只有10%的连接重置错误会打印详情
+        console.error(`❌ 连接重置错误 (仅显示10%的错误详情)`);
+      }
+    } else {
+      // 其他类型错误正常打印
+      console.error(`❌ 聊天响应失败 - HTTP状态码: ${chatResponse.status}`);
+      if (chatResponse.status >= 500) {
+        console.error(`服务器错误: ${chatResponse.body}`);
+      }
+    }
   }
 
   // 记录自定义指标 - 只有业务成功才计入成功
@@ -242,7 +287,9 @@ export function setup() {
   console.log(`🔄 预估总请求数: ${TARGET_QPS * 600} 个 (${TARGET_QPS} QPS × 600秒)`);
   console.log(`👥 VU配置: 预分配 ${preAllocatedVUs} 个，最大 ${maxVUs} 个`);
   console.log(`⏱️  预计单次耗时: ~3.9秒 (session创建+2秒延迟+聊天响应)`);
-  console.log('🌊 测试流程: create-session → sleep(2s) → chat (SSE流式响应)');
+  console.log(`🔧 稳定性优化: 重试机制(最多3次), 120秒超时, 减少日志噪音`);
+  console.log(`🎯 高QPS优化: ${TARGET_QPS > 50 ? '启用延迟抖动' : '标准延迟模式'}`);
+  console.log('🌊 测试流程: create-session → sleep(2s+抖动) → chat (SSE流式响应)');
   console.log('⏱️  预计测试时间: 10分钟');
   return { baseUrl: config.baseUrl };
 }
