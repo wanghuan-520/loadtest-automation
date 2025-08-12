@@ -31,23 +31,28 @@ function generateRandomIP() {
 // 固定QPS压力测试场景配置
 export const options = {
   scenarios: {
-    // 固定QPS测试 - 恒定请求速率（稳定性优化版）
+    // 固定QPS测试 - 恒定请求速率（超稳定性优化版）
     fixed_qps: {
       executor: 'constant-arrival-rate',
       rate: TARGET_QPS,              // 每秒请求数（QPS）
       timeUnit: '1s',                // 时间单位：1秒
       duration: '10m',               // 测试持续时间：10分钟
-      // QPS稳定性优化：科学VU配置，避免过度分配导致的调度混乱
-      preAllocatedVUs: Math.max(TARGET_QPS * 3, 1),  // 预留更多缓冲
-      maxVUs: TARGET_QPS * 15, // 15倍配置，平衡性能与资源
-      tags: { test_type: 'fixed_qps' },
+      // 🎯 QPS超稳定配置：精确VU分配，避免调度器过载
+      preAllocatedVUs: Math.min(Math.max(TARGET_QPS * 2, 10), 200),  // 2倍预分配，上限200
+      maxVUs: Math.min(Math.max(TARGET_QPS * 4, 20), 400),           // 4倍最大值，上限400
+      gracefulRampDown: '10s',       // 优雅停止，避免请求突然中断
+      tags: { test_type: 'fixed_qps_ultra_stable' },
     },
   },
-  // 连接池优化：提高QPS稳定性，减少连接重置
-  batch: 1,                          // 每次只发送1个请求，确保精确控制
-  batchPerHost: 1,                   // 每个主机只并发1个请求批次
-  noConnectionReuse: false,          // 启用连接复用，减少新连接建立
+  // 🔧 QPS平滑优化：连接池与请求调度精细调节
+  batch: 1,                          // 单请求模式，确保精确QPS控制
+  batchPerHost: 1,                   // 每主机单批次，避免请求堆积
+  noConnectionReuse: false,          // 启用连接复用，减少握手开销
+  noVUConnectionReuse: false,        // 启用VU内连接复用，提升稳定性
   userAgent: 'k6-loadtest/1.0',      // 统一User-Agent
+  // 🎯 请求调度精细优化
+  discardResponseBodies: false,      // 保持响应体，确保完整测试
+  httpDebug: 'none',                 // 关闭HTTP调试，减少性能开销
   // 注释掉阈值设置，只关注QPS稳定性，不验证响应质量
   // thresholds: {
   //   http_req_failed: ['rate<0.01'],
@@ -89,7 +94,8 @@ export default function () {
     }),
     { 
       headers,
-              timeout: '90s'  // 设置90秒超时，应对长响应时间
+      timeout: '30s',                // 降低超时时间，避免VU长时间占用
+      responseType: 'text',          // 明确响应类型，提升解析效率
     }
   );
 
@@ -120,18 +126,19 @@ export default function () {
 // 测试设置阶段
 export function setup() {
   const startTime = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
-  const preAllocatedVUs = Math.max(TARGET_QPS * 3, 1);
-  const maxVUs = TARGET_QPS * 15;
+  const preAllocatedVUs = Math.min(Math.max(TARGET_QPS * 2, 10), 200);
+  const maxVUs = Math.min(Math.max(TARGET_QPS * 4, 20), 400);
   
   console.log('🎯 开始 guest/create-session 固定QPS压力测试...');
   console.log(`🕐 测试开始时间: ${startTime}`);
   console.log(`📡 测试目标: ${config.baseUrl}/godgpt/guest/create-session`);
-  console.log(`🔧 测试场景: 固定QPS测试 (${TARGET_QPS} QPS，持续5分钟)`);
+  console.log(`🔧 测试场景: 超稳定QPS测试 (${TARGET_QPS} QPS，持续10分钟)`);
   console.log(`⚡ 目标QPS: ${TARGET_QPS} (可通过 TARGET_QPS 环境变量配置)`);
-  console.log(`🔄 预估总请求数: ${TARGET_QPS * 300} 个 (${TARGET_QPS} QPS × 300秒)`);
-  console.log(`👥 VU配置: 预分配${preAllocatedVUs}个，最大${maxVUs}个 (应对极端响应时间波动)`);
-  console.log('🚀 稳定策略: 科学VU配置，避免调度器过载和资源竞争');
-  console.log('⏱️  预计测试时间: 5分钟');
+  console.log(`🔄 预估总请求数: ${TARGET_QPS * 600} 个 (${TARGET_QPS} QPS × 600秒)`);
+  console.log(`👥 VU配置优化: 预分配${preAllocatedVUs}个，最大${maxVUs}个 (精确资源分配)`);
+  console.log('🎯 超稳定策略: 2-4倍VU配置，避免调度器过载，消除锯齿状波动');
+  console.log('⏱️  预计测试时间: 10分钟');
+  console.log('🔍 优化重点: VU资源精确控制，连接复用，调度平滑化');
   return { baseUrl: config.baseUrl };
 }
 
