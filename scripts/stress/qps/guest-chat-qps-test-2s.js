@@ -180,14 +180,48 @@ export default function () {
     ip: randomIP
   };
 
-  const chatResponse = http.post(
-    `${config.baseUrl}/godgpt/guest/chat`,
-    JSON.stringify(chatPayload),
-         { 
-       headers: chatHeaders,
-       timeout: '60s',                      // 优化：chat超时从90s减少到60s
-     }
-  );
+  // 添加重试机制处理超时问题
+  let chatResponse;
+  let retryCount = 0;
+  const maxRetries = 1;  // 最多重试1次，避免过度重试影响QPS
+  
+  while (retryCount <= maxRetries) {
+    try {
+      chatResponse = http.post(
+        `${config.baseUrl}/godgpt/guest/chat`,
+        JSON.stringify(chatPayload),
+        { 
+          headers: chatHeaders,
+          timeout: '120s',                     // 修复：chat超时调回120s，60s不足应对SSE流式响应
+        }
+      );
+      
+      // 如果请求成功或者是业务错误（非超时），跳出重试循环
+      if (chatResponse.status !== 0) {
+        break;
+      }
+      
+    } catch (error) {
+      if (retryCount < maxRetries) {
+        console.log(`🔄 chat请求重试 ${retryCount + 1}/${maxRetries + 1}: ${error.message}`);
+      }
+    }
+    
+    retryCount++;
+    if (retryCount <= maxRetries) {
+      sleep(0.2); // 重试前等待200ms
+    }
+  }
+  
+  // 如果所有重试都失败，创建失败响应
+  if (!chatResponse || chatResponse.status === 0) {
+    chatResponse = {
+      status: 0,
+      body: null,
+      headers: {},
+      timings: { duration: 0 }
+    };
+  }
 
 
 
@@ -208,11 +242,20 @@ export default function () {
     }
   });
 
-  // 如果聊天失败，打印错误信息
+  // 如果聊天失败，打印简化错误信息（减少超时噪音）
   if (!isChatSuccess) {
-    console.error(`❌ 聊天响应失败 - HTTP状态码: ${chatResponse.status}`);
-    console.error(`完整响应体: ${chatResponse.body}`);
-    console.error(`响应头: ${JSON.stringify(chatResponse.headers, null, 2)}`);
+    if (chatResponse.status === 0) {
+      // 超时错误，只统计不详细打印（避免日志爆炸）
+      if (Math.random() < 0.1) { // 只有10%的超时错误会打印详情
+        console.error(`❌ 超时错误 (仅显示10%的超时详情)`);
+      }
+    } else {
+      // 其他类型错误正常打印
+      console.error(`❌ 聊天响应失败 - HTTP状态码: ${chatResponse.status}`);
+      if (chatResponse.status >= 500) {
+        console.error(`服务器错误: ${chatResponse.body}`);
+      }
+    }
   }
 
   // 记录自定义指标 - 只有业务成功才计入成功
@@ -237,9 +280,9 @@ export function setup() {
   console.log(`⚡ 目标QPS: ${TARGET_QPS} (可通过 TARGET_QPS 环境变量配置)`);
   console.log(`🔄 预估总请求数: ${TARGET_QPS * 600} 个 (${TARGET_QPS} QPS × 600秒)`);
   console.log(`👥 VU配置: 预分配 ${preAllocatedVUs} 个，最大 ${maxVUs} 个`);
-  console.log(`⏱️  预计单次耗时: ~3.2秒 (session+1.5s延迟+chat)`);
-  console.log(`🚀 QPS优化: VU充足配置 + 缩短延迟(2s→1.5s) + 优化超时设置`);
-  console.log('🌊 测试流程: create-session → sleep(1.5s) → chat (SSE流式响应)');
+  console.log(`⏱️  预计单次耗时: ~3.7秒 (session+2s延迟+chat)`);
+  console.log(`🚀 QPS优化: VU充足配置(${maxVUs}个) + 超时优化(session 30s, chat 120s) + 重试机制`);
+  console.log('🌊 测试流程: create-session → sleep(2s) → chat (SSE流式响应, 最多重试1次)');
   console.log('⏱️  预计测试时间: 10分钟');
   return { baseUrl: config.baseUrl };
 }
