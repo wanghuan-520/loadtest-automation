@@ -51,18 +51,23 @@ export const options = {
       rate: TARGET_QPS,              // 每秒请求数（QPS）
       timeUnit: '1s',                // 时间单位：1秒
       duration: '10m',               // 测试持续时间：10分钟
-      // 🎯 QPS超稳定配置：基于实际响应时间动态调整VU分配
-      // 实际测试显示平均响应时间仅38ms，大幅降低VU需求
-      preAllocatedVUs: Math.min(Math.max(TARGET_QPS * 2, 3), 50),   // 2倍预分配，38ms响应时间下足够
-      maxVUs: Math.min(Math.max(TARGET_QPS * 4, 6), 100),          // 4倍最大值，应对偶发延迟波动
+      // 🎯 优化VU配置：基于实际测试数据重新计算
+      // guest-chat测试显示：session(249ms) + sleep(2s) + chat(1677ms) ≈ 3.9秒总耗时
+      // 所需VU = TARGET_QPS × 3.9秒，增加50%缓冲
+      preAllocatedVUs: Math.max(Math.ceil(TARGET_QPS * 4.5), 10),    // 4.5倍预分配（3.9秒+缓冲）
+      maxVUs: Math.max(Math.ceil(TARGET_QPS * 6), 20),              // 6倍最大值，应对峰值波动
       tags: { test_type: 'fixed_qps_chat' },
     },
   },
-  // 连接池优化：提高QPS稳定性，减少连接重置
+  // 连接池优化：提高QPS稳定性，减少连接重置  
   batch: 1,                          // 每次只发送1个请求，确保精确控制
   batchPerHost: 1,                   // 每个主机只并发1个请求批次
   noConnectionReuse: false,          // 启用连接复用，减少新连接建立
+  noVUConnectionReuse: false,        // 启用VU内连接复用，提升高QPS性能
   userAgent: 'k6-loadtest/1.0',      // 统一User-Agent
+  // 高QPS优化配置
+  discardResponseBodies: false,      // 保留响应体用于业务验证
+  timeout: '90s',                    // 全局超时设置
   // 注释掉阈值设置，只关注QPS稳定性，不验证响应质量
   // thresholds: {
   //   http_req_failed: ['rate<0.01'],
@@ -226,14 +231,19 @@ export default function () {
 // 测试设置阶段
 export function setup() {
   const startTime = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
+  const preAllocatedVUs = Math.max(Math.ceil(TARGET_QPS * 4.5), 10);
+  const maxVUs = Math.max(Math.ceil(TARGET_QPS * 6), 20);
+  
   console.log('🎯 开始 guest/chat 固定QPS压力测试...');
   console.log(`🕐 测试开始时间: ${startTime}`);
   console.log(`📡 测试目标: ${config.baseUrl}/godgpt/guest/chat`);
-  console.log(`🔧 测试场景: 固定QPS测试 (${TARGET_QPS} QPS，持续5分钟)`);
+  console.log(`🔧 测试场景: 固定QPS测试 (${TARGET_QPS} QPS，持续10分钟)`);
   console.log(`⚡ 目标QPS: ${TARGET_QPS} (可通过 TARGET_QPS 环境变量配置)`);
-  console.log(`🔄 预估总请求数: ${TARGET_QPS * 300} 个 (${TARGET_QPS} QPS × 300秒)`);
-  console.log('🌊 测试流程: create-session → chat (SSE流式响应)');
-  console.log('⏱️  预计测试时间: 5分钟');
+  console.log(`🔄 预估总请求数: ${TARGET_QPS * 600} 个 (${TARGET_QPS} QPS × 600秒)`);
+  console.log(`👥 VU配置: 预分配 ${preAllocatedVUs} 个，最大 ${maxVUs} 个`);
+  console.log(`⏱️  预计单次耗时: ~3.9秒 (session创建+2秒延迟+聊天响应)`);
+  console.log('🌊 测试流程: create-session → sleep(2s) → chat (SSE流式响应)');
+  console.log('⏱️  预计测试时间: 10分钟');
   return { baseUrl: config.baseUrl };
 }
 
