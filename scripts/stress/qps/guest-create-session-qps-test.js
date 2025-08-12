@@ -40,7 +40,6 @@ export const options = {
       // 🎯 QPS超稳定配置：精确VU分配，避免调度器过载
       preAllocatedVUs: Math.min(Math.max(TARGET_QPS * 2, 10), 200),  // 2倍预分配，上限200
       maxVUs: Math.min(Math.max(TARGET_QPS * 4, 20), 400),           // 4倍最大值，上限400
-      gracefulRampDown: '10s',       // 优雅停止，避免请求突然中断
       tags: { test_type: 'fixed_qps_ultra_stable' },
     },
   },
