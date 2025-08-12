@@ -5,7 +5,7 @@ import { Rate, Trend } from 'k6/metrics';
 // 使用说明：
 // 默认目标QPS: 50 QPS（每秒50个请求，持续10分钟）
 // 自定义目标QPS: k6 run -e TARGET_QPS=100 guest-create-session-qps-test.js
-// 静默模式（无debug信息）: k6 run -e TARGET_QPS=70 -e QUIET=true guest-create-session-qps-test.js
+// 静默模式（无debug信息）: k6 run --quiet -e TARGET_QPS=70 guest-create-session-qps-test.js
 // 示例: k6 run -e TARGET_QPS=80 guest-create-session-qps-test.js
 
 // 自定义指标
@@ -19,8 +19,6 @@ const config = JSON.parse(open('../../../config/env.dev.json'));
 
 // 获取目标QPS参数，默认值为50
 const TARGET_QPS = __ENV.TARGET_QPS ? parseInt(__ENV.TARGET_QPS) : 1;
-// 静默模式开关，用于控制debug信息输出
-const QUIET_MODE = __ENV.QUIET === 'true';
 
 // 生成随机IP地址的函数
 function generateRandomIP() {
@@ -54,10 +52,8 @@ export const options = {
   userAgent: 'k6-loadtest/1.0',      // 统一User-Agent
   // 🎯 请求调度精细优化
   discardResponseBodies: false,      // 保持响应体，确保完整测试
-  httpDebug: 'none',                 // 关闭HTTP调试，减少性能开销
-  // 🔇 静默模式优化
-  summaryTrendStats: ['avg', 'p(95)'], // 精简统计信息
-  quiet: QUIET_MODE,                 // 根据环境变量控制静默模式
+  // 🔇 精简统计信息显示
+  summaryTrendStats: ['avg', 'p(95)'], // 只显示平均值和95分位数
   // 注释掉阈值设置，只关注QPS稳定性，不验证响应质量
   // thresholds: {
   //   http_req_failed: ['rate<0.01'],
@@ -134,22 +130,10 @@ export function setup() {
   const preAllocatedVUs = Math.min(Math.max(TARGET_QPS * 2, 10), 200);
   const maxVUs = Math.min(Math.max(TARGET_QPS * 4, 20), 400);
   
-  // 🔇 根据静默模式控制输出
-  if (!QUIET_MODE) {
-    console.log('🎯 开始 guest/create-session 固定QPS压力测试...');
-    console.log(`🕐 测试开始时间: ${startTime}`);
-    console.log(`📡 测试目标: ${config.baseUrl}/godgpt/guest/create-session`);
-    console.log(`🔧 测试场景: 超稳定QPS测试 (${TARGET_QPS} QPS，持续10分钟)`);
-    console.log(`⚡ 目标QPS: ${TARGET_QPS} (可通过 TARGET_QPS 环境变量配置)`);
-    console.log(`🔄 预估总请求数: ${TARGET_QPS * 600} 个 (${TARGET_QPS} QPS × 600秒)`);
-    console.log(`👥 VU配置优化: 预分配${preAllocatedVUs}个，最大${maxVUs}个 (精确资源分配)`);
-    console.log('🎯 超稳定策略: 2-4倍VU配置，避免调度器过载，消除锯齿状波动');
-    console.log('⏱️  预计测试时间: 10分钟');
-    console.log('🔍 优化重点: VU资源精确控制，连接复用，调度平滑化');
-    console.log('💡 提示: 使用 -e QUIET=true 启用静默模式，减少输出信息');
-  } else {
-    console.log(`🎯 静默模式启动: ${TARGET_QPS} QPS 超稳定测试 (10分钟)`);
-  }
+  console.log('🎯 开始 guest/create-session 超稳定QPS压力测试...');
+  console.log(`⚡ 目标QPS: ${TARGET_QPS} | 预分配VU: ${preAllocatedVUs} | 最大VU: ${maxVUs}`);
+  console.log(`🕐 测试时间: ${startTime} (持续10分钟)`);
+  console.log('💡 提示: 使用 k6 run --quiet 命令减少调试输出');
   
   return { baseUrl: config.baseUrl };
 }
@@ -157,14 +141,6 @@ export function setup() {
 // 测试清理阶段
 export function teardown(data) {
   const endTime = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
-  
-  // 🔇 根据静默模式控制输出
-  if (!QUIET_MODE) {
-    console.log('✅ guest/create-session 固定QPS压力测试完成');
-    console.log(`🕛 测试结束时间: ${endTime}`);
-    console.log('🔍 关键指标：API调用成功率、API调用时间、QPS稳定性');
-    console.log('📈 请分析QPS是否稳定、响应时间分布和系统资源使用情况');
-  } else {
-    console.log(`✅ 静默模式测试完成 - ${endTime}`);
-  }
+  console.log(`✅ guest/create-session 超稳定QPS压力测试完成 - ${endTime}`);
+  console.log('🔍 关键指标: API调用成功率、响应时间、QPS稳定性');
 } 
