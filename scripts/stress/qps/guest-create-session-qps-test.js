@@ -8,11 +8,9 @@ import { Rate, Trend } from 'k6/metrics';
 // 静默模式（无debug信息）: k6 run --quiet -e TARGET_QPS=70 guest-create-session-qps-test.js
 // 示例: k6 run -e TARGET_QPS=80 guest-create-session-qps-test.js
 
-// 自定义指标
+// 自定义指标 - 精简版，只保留核心指标
 const apiCallSuccessRate = new Rate('api_call_success_rate');
 const apiCallDuration = new Trend('api_call_duration');
-const vuUtilization = new Trend('vu_utilization');  // VU使用率监控
-const requestQueue = new Trend('request_queue');    // 请求队列监控
 
 // 从配置文件加载环境配置
 const config = JSON.parse(open('../../../config/env.dev.json'));
@@ -118,10 +116,6 @@ export default function () {
   if (createSessionResponse.status === 200) {
     apiCallDuration.add(createSessionResponse.timings.duration);
   }
-  
-  // 记录VU和队列监控指标
-  vuUtilization.add(__VU);  // 当前VU ID作为使用率指标
-  requestQueue.add(createSessionResponse.timings.blocked || 0);  // 请求队列等待时间
 }
 
 // 测试设置阶段
