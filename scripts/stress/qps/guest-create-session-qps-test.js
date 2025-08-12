@@ -36,7 +36,7 @@ export const options = {
       executor: 'constant-arrival-rate',
       rate: TARGET_QPS,              // 每秒请求数（QPS）
       timeUnit: '1s',                // 时间单位：1秒
-      duration: '5m',                // 测试持续时间：5分钟
+      duration: '10m',               // 测试持续时间：10分钟
       // QPS稳定性优化：科学VU配置，避免过度分配导致的调度混乱
       preAllocatedVUs: Math.max(TARGET_QPS * 3, 1),  // 预留更多缓冲
       maxVUs: TARGET_QPS * 15, // 15倍配置，平衡性能与资源
