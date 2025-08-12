@@ -58,10 +58,10 @@ export const options = {
       rate: TARGET_QPS,              // 每秒请求数（QPS）
       timeUnit: '1s',                // 时间单位：1秒
       duration: '10m',               // 测试持续时间：10分钟
-      // 🎯 QPS超稳定配置：基于实际响应时间动态调整VU分配
-      // 实际测试显示平均响应时间仅38ms，大幅降低VU需求
-      preAllocatedVUs: Math.min(Math.max(TARGET_QPS * 2, 3), 50),   // 2倍预分配，38ms响应时间下足够
-      maxVUs: Math.min(Math.max(TARGET_QPS * 4, 6), 100),          // 4倍最大值，应对偶发延迟波动
+      // 🎯 QPS配置：基于实测4.1秒流程耗时优化
+      // 实测流程：session + sleep(2s) + chat = 4.1秒
+      preAllocatedVUs: Math.max(Math.ceil(TARGET_QPS * 4.2), 50),   // 4.2倍预分配，基于实测耗时
+      maxVUs: Math.max(Math.ceil(TARGET_QPS * 5.5), 300),          // 5.5倍最大值，确保充足资源
       tags: { test_type: 'fixed_qps_user_chat_2s' },
     },
   },
