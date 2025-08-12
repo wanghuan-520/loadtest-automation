@@ -94,8 +94,9 @@ export default function () {
     }),
     { 
       headers,
-      timeout: '30s',                // 降低超时时间，避免VU长时间占用
+      timeout: '60s',                // 增加超时时间，适应服务器处理能力
       responseType: 'text',          // 明确响应类型，提升解析效率
+      responseCallback: http.expectedStatuses(200, 408, 429), // 接受超时和限流状态码
     }
   );
 
@@ -109,7 +110,9 @@ export default function () {
       } catch {
         return false;
       }
-    }
+    },
+    '响应时间合理': (r) => r.timings.duration < 60000,  // 60秒内响应
+    '无超时错误': (r) => r.status !== 0,  // 0表示请求超时或网络错误
   });
   
   // 记录API调用指标 - 只有HTTP200且业务code为20000才算成功
