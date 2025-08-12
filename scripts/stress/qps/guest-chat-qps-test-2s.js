@@ -60,19 +60,23 @@ export const options = {
       rate: TARGET_QPS,              // 每秒启动的完整流程数
       timeUnit: '1s',                
       duration: '10m',               
-      // 🎯 串行流程VU配置：基于create-session + sleep(2) + chat总耗时
-      // 完整流程：session(38ms) + sleep(2s) + chat(1677ms) = 3.715秒
-      // 50 QPS需要VU数: 50 × 4 = 200个VU（考虑网络延迟和重试）
-      preAllocatedVUs: Math.max(Math.ceil(TARGET_QPS * 4), 50),     // 4倍预分配，充足VU保证QPS
-      maxVUs: Math.max(Math.ceil(TARGET_QPS * 6), 200),             // 6倍最大值，应对波动和重试
+      // 🎯 串行流程VU配置：基于实际测试数据优化
+      // 实测流程：session(297ms) + sleep(2s) + chat(1791ms) = 4.088秒
+      // 50 QPS需要VU数: 50 × 4.2 = 210个VU（基于实测数据）
+      preAllocatedVUs: Math.max(Math.ceil(TARGET_QPS * 4.5), 80),   // 4.5倍预分配，基于实测耗时
+      maxVUs: Math.max(Math.ceil(TARGET_QPS * 5.5), 300),          // 5.5倍最大值，确保充足资源
       tags: { test_type: 'complete_flow' },
     },
   },
   // 连接池优化：提高QPS稳定性，减少连接重置
   batch: 1,                          // 每次只发送1个请求，确保精确控制
-  batchPerHost: 1,                   // 每个主机只并发1个请求批次
+  batchPerHost: 2,                   // 增加到2，提高并发处理能力
   noConnectionReuse: false,          // 启用连接复用，减少新连接建立
   userAgent: 'k6-loadtest/1.0',      // 统一User-Agent
+  // HTTP连接池优化
+  insecureSkipTLSVerify: false,      // 保持TLS验证
+  tlsAuth: [],                       // TLS认证配置
+  hosts: {},                         // 主机映射
   // 注释掉阈值设置，只关注QPS稳定性，不验证响应质量
   // thresholds: {
   //   http_req_failed: ['rate<0.01'],
@@ -300,8 +304,9 @@ export function setup() {
   console.log(`⚡ 目标QPS: ${TARGET_QPS} 个完整流程/秒`);
   console.log(`🔄 预估总请求数: ${TARGET_QPS * 600} 个流程 = ${TARGET_QPS * 2 * 600} 次API调用`);
   console.log(`👥 VU配置: 预分配 ${preAllocatedVUs} 个，最大 ${maxVUs} 个`);
-  console.log(`⏱️  预计单次耗时: ~3.7秒 (session + sleep(2s) + chat)`);
-  console.log(`🚀 QPS优化: VU充足配置(${maxVUs}个) + 超时优化 + 重试机制`);
+  console.log(`⏱️  预计单次耗时: ~4.1秒 (session(297ms) + sleep(2s) + chat(1791ms))`);
+  console.log(`🚀 QPS优化: VU充足配置(${maxVUs}个) + 连接池优化 + 重试机制`);
+  console.log(`📊 理论VU需求: ${TARGET_QPS} QPS × 4.1s = ${Math.ceil(TARGET_QPS * 4.1)} 个VU`);
   console.log('🔄 完整业务流程验证: create-session → sleep(2s) → chat');
   console.log('⚡ 业务验证重点: 2秒延迟对系统性能的具体影响');
   console.log('📊 期望结果: 40个流程 = 40次session + 40次chat = 80次API调用');
