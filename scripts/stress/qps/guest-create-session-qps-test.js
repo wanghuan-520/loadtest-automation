@@ -50,8 +50,8 @@ export const options = {
   userAgent: 'k6-loadtest/1.0',      // 统一User-Agent
   // 🎯 请求调度精细优化
   discardResponseBodies: false,      // 保持响应体，确保完整测试
-  // 🔇 精简统计信息显示
-  summaryTrendStats: ['avg', 'p(95)'], // 只显示平均值和95分位数
+  // 📊 完整响应时间统计信息
+  summaryTrendStats: ['min', 'avg', 'med', 'max', 'p(90)', 'p(95)'], // 显示完整的响应时间分布
   // 注释掉阈值设置，只关注QPS稳定性，不验证响应质量
   // thresholds: {
   //   http_req_failed: ['rate<0.01'],
