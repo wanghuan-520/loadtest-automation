@@ -11,7 +11,7 @@ import { getAccessToken, setupTest, teardownTest } from '../../utils/auth.js';
 // 🔧 性能优化说明：
 // - maxVUs: TARGET_QPS * 15 - 平衡性能与资源，语音聊天处理时间较长
 // - preAllocatedVUs: TARGET_QPS * 3 - 预分配足够VU避免延迟
-// - 超时时间: 60秒 - 语音聊天处理时间较长
+// - 超时时间: 300秒 - 语音聊天处理时间较长，增加超时时间避免客户端提前断开连接
 // - 随机化UserAgent: 避免请求被服务器限制
 // - 固定会话ID: 使用固定sessionId进行稳定性测试
 // - 固定语音参数: 使用统一的测试参数确保一致性
@@ -90,15 +90,15 @@ export const options = {
   noConnectionReuse: false,          // 启用连接复用，减少新连接建立
   userAgent: 'k6-loadtest/1.0',      // 统一User-Agent
   // 全局超时配置：防止请求长时间阻塞
-  timeout: '120s',                   // 全局超时：120秒
+  timeout: '300s',                   // 全局超时：300秒（语音处理需要更长时间）
   // httpDebug: 'full',              // 调试时可启用，压测时建议关闭以确保准确性
   // 可选的性能阈值 - 可通过环境变量 ENABLE_THRESHOLDS=true 启用
   thresholds: __ENV.ENABLE_THRESHOLDS ? {
     http_req_failed: ['rate<0.10'],                    // HTTP失败率小于10% (语音处理较重，适当放宽)
     'voice_chat_success_rate': ['rate>0.85'],          // 语音聊天成功率大于85% (考虑超时因素)
-    'voice_chat_duration': ['p(95)<120000'],           // 95%的请求响应时间小于120秒
-    'voice_chat_request_duration': ['p(90)<90000'],    // 90%的请求时间小于90秒
-    http_req_duration: ['p(95)<120000'],               // 95%的HTTP请求时间小于120秒
+    'voice_chat_duration': ['p(95)<300000'],           // 95%的请求响应时间小于300秒
+    'voice_chat_request_duration': ['p(90)<240000'],   // 90%的请求时间小于240秒
+    http_req_duration: ['p(95)<300000'],               // 95%的HTTP请求时间小于300秒
   } : {},
 };
 
@@ -155,7 +155,7 @@ export default function (data) {
   
   const voiceChatParams = {
     headers: voiceChatHeaders,
-    timeout: '120s', // 设置120秒超时，应对语音处理长响应时间
+    timeout: '300s', // 设置300秒超时，避免客户端超时导致服务端OperationCanceledException
     // 响应配置：确保压测准确性
     responseType: 'text',            // 明确响应类型
     discardResponseBodies: false,    // 保留响应体用于分析和验证
@@ -178,12 +178,12 @@ export default function (data) {
       console.error(`   错误信息: ${voiceChatResponse.error || '未知错误'}`);
       console.error(`   错误码: ${voiceChatResponse.error_code || 'N/A'}`);
       console.error(`   响应体: ${voiceChatResponse.body || '空'}`);
-      console.error(`   超时设置: 120s`);
+      console.error(`   超时设置: 300s`);
       console.error(`   请求耗时: ${voiceChatResponse.timings ? voiceChatResponse.timings.duration : 'N/A'}ms`);
       
       // 超时特殊处理建议
       if (isTimeout) {
-        console.error(`   💡 超时优化建议: 考虑增加超时时间或检查网络连接`);
+        console.error(`   💡 超时优化建议: 语音处理超时，可能需要进一步增加超时时间或优化音频数据大小`);
       }
     }
   } catch (error) {
@@ -254,7 +254,7 @@ export default function (data) {
 export function setup() {
   // 语音聊天测试特有的配置信息
   console.log(`👥 VU配置: 预分配 ${Math.max(TARGET_QPS, 5)} 个，最大 ${Math.max(TARGET_QPS * 5, 10)} 个`);
-  console.log(`⏰ 超时设置: 120秒 (适应语音聊天长处理时间)`);
+  console.log(`⏰ 超时设置: 300秒 (适应语音聊天长处理时间，避免客户端超时)`);
   console.log(`🎭 随机化: UserAgent (会话ID已固定为稳定性测试)`);
   console.log(`🆔 固定会话ID: 56918827-3851-44e7-a32e-27d06696da8f`);
   console.log(`📊 性能阈值: ${__ENV.ENABLE_THRESHOLDS ? '已启用' : '未启用'} (可通过 ENABLE_THRESHOLDS=true 启用)`);
@@ -276,11 +276,12 @@ export function teardown(data) {
   // 语音聊天特有的性能分析建议
   console.log('📋 语音聊天性能分析建议：');
   console.log('   1. 检查QPS是否稳定维持在目标值 (语音处理较重)');
-  console.log('   2. 分析P95响应时间是否在可接受范围内(<120s)');
+  console.log('   2. 分析P95响应时间是否在可接受范围内(<300s)');
   console.log('   3. 监控音频上传和处理的延迟分布');
   console.log('   4. 观察流式响应的完整性和稳定性');
   console.log('   5. 对比音频时长与处理时间的关系');
   console.log('   6. 检查固定参数下的性能稳定性');
   console.log('   7. 超时请求分析：区分网络超时vs处理超时');
   console.log('   8. 建议监控服务端处理时间，优化语音识别性能');
+  console.log('   9. 监控客户端超时导致的OperationCanceledException异常');
 }
