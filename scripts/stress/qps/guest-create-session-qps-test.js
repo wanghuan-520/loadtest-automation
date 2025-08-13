@@ -3,10 +3,10 @@ import { check } from 'k6';
 import { Rate, Trend } from 'k6/metrics';
 
 // 使用说明：
-// 默认目标QPS: 50 QPS（每秒50个请求，持续10分钟）
-// 自定义目标QPS: k6 run -e TARGET_QPS=100 guest-create-session-qps-test.js
-// 静默模式（无debug信息）: k6 run --quiet -e TARGET_QPS=70 guest-create-session-qps-test.js
-// 示例: k6 run -e TARGET_QPS=80 guest-create-session-qps-test.js
+// 默认目标QPS: 30 QPS（每秒30个请求，持续10分钟）
+// 自定义目标QPS: k6 run -e TARGET_QPS=50 guest-create-session-qps-test.js
+// 静默模式（无debug信息）: k6 run --quiet -e TARGET_QPS=40 guest-create-session-qps-test.js
+// 示例: k6 run -e TARGET_QPS=60 guest-create-session-qps-test.js
 
 // 自定义指标 - 精简版，只保留核心指标
 const apiCallSuccessRate = new Rate('api_call_success_rate');
@@ -15,8 +15,8 @@ const apiCallDuration = new Trend('api_call_duration');
 // 从配置文件加载环境配置
 const config = JSON.parse(open('../../../config/env.dev.json'));
 
-// 获取目标QPS参数，默认值为10（更合理的默认值）
-const TARGET_QPS = __ENV.TARGET_QPS ? parseInt(__ENV.TARGET_QPS) : 10;
+// 获取目标QPS参数，默认值为30（较有挑战性的合理起点）
+const TARGET_QPS = __ENV.TARGET_QPS ? parseInt(__ENV.TARGET_QPS) : 30;
 
 // 生成随机IP地址的函数
 function generateRandomIP() {

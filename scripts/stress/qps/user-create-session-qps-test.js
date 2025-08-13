@@ -4,10 +4,10 @@ import { Rate, Trend } from 'k6/metrics';
 import { getAccessToken, setupTest, teardownTest } from '../../utils/auth.js';
 
 // 使用说明：
-// 默认目标QPS: 40 QPS（每秒40个请求，持续10分钟）
-// 自定义目标QPS: k6 run -e TARGET_QPS=60 user-create-session-qps-test.js
-// 静默模式（无debug信息）: k6 run --quiet -e TARGET_QPS=70 user-create-session-qps-test.js
-// 示例: k6 run -e TARGET_QPS=50 user-create-session-qps-test.js
+// 默认目标QPS: 30 QPS（每秒30个请求，持续10分钟）
+// 自定义目标QPS: k6 run -e TARGET_QPS=50 user-create-session-qps-test.js
+// 静默模式（无debug信息）: k6 run --quiet -e TARGET_QPS=40 user-create-session-qps-test.js
+// 示例: k6 run -e TARGET_QPS=60 user-create-session-qps-test.js
 
 // 自定义指标 - 精简版，只保留核心指标
 const sessionCreationRate = new Rate('session_creation_success_rate');
@@ -35,8 +35,8 @@ try {
   console.log('⚠️  未找到tokens.json配置文件，将使用环境变量或默认token');
 }
 
-// 获取目标QPS参数，默认值为40
-const TARGET_QPS = __ENV.TARGET_QPS ? parseInt(__ENV.TARGET_QPS) : 40;
+// 获取目标QPS参数，默认值为30（较有挑战性的合理起点）
+const TARGET_QPS = __ENV.TARGET_QPS ? parseInt(__ENV.TARGET_QPS) : 30;
 
 
 
