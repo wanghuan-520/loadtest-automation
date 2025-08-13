@@ -110,14 +110,16 @@ export default function (data) {
     'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36',
   };
   
-  const createSessionParams = {
-    headers: sessionHeaders,
-    timeout: '30s',                // 调整为合理的30秒超时，基于实际38ms响应时间
-    responseType: 'text',          // 明确响应类型，提升解析效率
-    responseCallback: http.expectedStatuses(200, 408, 429, 502, 503, 504), // 接受更多状态码，减少错误干扰
-  };
-  
-  const createSessionResponse = http.post(createSessionUrl, createSessionPayload, createSessionParams);
+  const createSessionResponse = http.post(
+    createSessionUrl,
+    createSessionPayload,
+    { 
+      headers: sessionHeaders,
+      timeout: '30s',                // 调整为合理的30秒超时，基于实际38ms响应时间
+      responseType: 'text',          // 明确响应类型，提升解析效率
+      responseCallback: http.expectedStatuses(200, 408, 429, 502, 503, 504), // 接受更多状态码，减少错误干扰
+    }
+  );
 
   // 业务成功判断 - HTTP状态码200 + 业务code为20000
   const isSessionCreated = check(createSessionResponse, {

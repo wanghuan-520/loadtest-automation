@@ -229,7 +229,6 @@ export default function (data) {
     chatResponseDuration.add(chatResponse.timings.duration);
   }
 
-  
 
 }
 
