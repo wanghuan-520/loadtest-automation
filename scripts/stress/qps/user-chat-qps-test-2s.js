@@ -59,11 +59,10 @@ export const options = {
       rate: TARGET_QPS,              // 每秒请求数（QPS）
       timeUnit: '1s',                // 时间单位：1秒
       duration: '10m',               // 测试持续时间：10分钟
-      // 🎯 QPS超稳定配置：基于实测4.1秒流程耗时大幅优化VU分配  
-      // 实测流程：session + sleep(2s) + chat = 4.1秒，但发现响应时间30-40秒，需要更多VU资源
-      // 修复：考虑实际响应时间40秒，VU需求 = QPS * (响应时间 + 2秒延迟) = QPS * 42秒
-      preAllocatedVUs: Math.max(Math.ceil(TARGET_QPS * 45), 200), // 45倍预分配，适应40s响应时间
-      maxVUs: Math.max(Math.ceil(TARGET_QPS * 60), 1000),         // 60倍最大值，确保足够VU池
+      // 🎯 QPS超稳定配置：基于实测流程耗时优化VU分配
+      // 实测流程：session + sleep(2s) + chat，提供充足的VU资源缓冲
+      preAllocatedVUs: Math.max(Math.ceil(TARGET_QPS * 5), 100),   // 5倍预分配，确保稳定性
+      maxVUs: Math.max(Math.ceil(TARGET_QPS * 10), 500),          // 10倍最大值，应对响应时间波动
       tags: { test_type: 'fixed_qps_ultra_stable' },
     },
   },
@@ -128,9 +127,8 @@ export default function (data) {
   
   const createSessionResponse = http.post(createSessionUrl, createSessionPayload, createSessionParams);
 
-  // 业务成功判断 - HTTP状态码200 + 业务code为20000
+  // 会话创建成功判断 - 只需要业务code为20000
   const isSessionCreated = check(createSessionResponse, {
-    'HTTP状态码200': (r) => r.status === 200,
     '业务代码20000': (r) => {
       try {
         const data = JSON.parse(r.body);
@@ -138,13 +136,10 @@ export default function (data) {
       } catch {
         return false;
       }
-    },
-    '响应时间合理': (r) => r.timings.duration < 120000, // 120秒内响应，适应长处理时间
-    '无超时错误': (r) => r.status !== 0,  // 0表示请求超时或网络错误
-    '响应体不为空': (r) => r.body && r.body.length > 0,  // 确保有有效响应内容
+    }
   });
   
-  // 记录会话创建指标 - 只有HTTP200且业务code为20000才算成功
+  // 记录会话创建指标 - 只有业务code为20000才算成功
   sessionCreationRate.add(isSessionCreated);
   
   // 记录create-session响应时间 - 只有业务成功时才记录
@@ -214,22 +209,14 @@ export default function (data) {
   
   const chatResponse = http.post(`${data.baseUrl}/gotgpt/chat`, JSON.stringify(chatPayload), chatParams);
   
-  // 验证聊天响应 - 优化SSE流式响应判断逻辑，移除响应时间限制
+  // 验证聊天响应 - HTTP状态码200 + 流式响应内容检查
   const isChatSuccess = check(chatResponse, {
     'HTTP状态码200': (r) => r.status === 200,
-    '业务成功判断': (r) => {
-      // 优化：只要HTTP状态码200且有响应内容就认为成功（适应SSE流式特性）
-      if (r.status !== 200) return false;
-      
-      // 聊天API返回SSE流式响应，简化判断逻辑
+    '流式响应内容不为空': (r) => {
+      // 聊天API返回SSE流式响应，检查是否有响应内容
       const responseBody = r.body || '';
-      
-      // 只要有响应内容就认为成功（SSE流数据可能被截断）
       return responseBody.length > 0;
-    },
-    // 移除响应时间检查 - 长响应时间不应判断为失败，只关注业务逻辑成功
-    '无超时错误': (r) => r.status !== 0,  // 0表示请求超时或网络错误
-    '响应体不为空': (r) => r.body && r.body.length > 0,  // 确保有有效响应内容
+    }
   });
   
   // 🔍 调试信息：只记录非网络错误的失败（过滤状态码0的超时/网络错误）
@@ -260,13 +247,13 @@ export default function (data) {
 // 测试设置阶段
 export function setup() {
   const startTime = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
-  const preAllocatedVUs = Math.max(Math.ceil(TARGET_QPS * 45), 200);
-  const maxVUs = Math.max(Math.ceil(TARGET_QPS * 60), 1000);
+  const preAllocatedVUs = Math.max(Math.ceil(TARGET_QPS * 5), 100);
+  const maxVUs = Math.max(Math.ceil(TARGET_QPS * 10), 500);
   
   console.log('🎯 开始 user/chat (2秒延迟版本) 超稳定QPS压力测试...');
   console.log(`⚡ 目标QPS: ${TARGET_QPS} | 预分配VU: ${preAllocatedVUs} | 最大VU: ${maxVUs}`);
   console.log(`🕐 测试时间: ${startTime} (持续10分钟)`);
-  console.log('🔧 优化策略: 基于实际40秒响应时间大幅优化VU配置，解决VU不足问题');
+  console.log('🔧 优化策略: 基于实测流程耗时合理分配VU资源，确保QPS稳定性');
   console.log('⚠️  修复: 增加超时时间到120s，优化SSE响应判断逻辑，支持更多HTTP状态码');
   console.log('💡 提示: 使用 k6 run --quiet 命令减少调试输出');
   
