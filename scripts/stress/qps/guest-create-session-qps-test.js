@@ -36,10 +36,10 @@ export const options = {
       rate: TARGET_QPS,              // 每秒请求数（QPS）
       timeUnit: '1s',                // 时间单位：1秒
       duration: '10m',               // 测试持续时间：10分钟
-      // 🎯 VU精准分配：避免发压机资源过载导致的状态码0问题
-      // 根据实际网络延迟优化：平均38ms响应时间 + 网络开销，2-3倍VU足够
-      preAllocatedVUs: Math.max(Math.ceil(TARGET_QPS * 2.5), 8),   // 2.5倍预分配，平衡性能与资源
-      maxVUs: Math.max(Math.ceil(TARGET_QPS * 4), 15),             // 4倍最大值，避免资源过载
+      // 🎯 VU平衡分配：避免发压机资源过载导致的状态码0问题
+      // 根据实际网络延迟优化：平均38ms响应时间 + 网络开销，5倍预分配更稳定
+      preAllocatedVUs: Math.max(Math.ceil(TARGET_QPS * 5), 10),    // 5倍预分配，保障QPS稳定性
+      maxVUs: Math.max(Math.ceil(TARGET_QPS * 10), 20),            // 10倍最大值，平衡资源与性能
       tags: { test_type: 'fixed_qps_ultra_stable' },
     },
   },
@@ -127,23 +127,23 @@ export default function () {
     apiCallDuration.add(createSessionResponse.timings.duration);
   }
   
-  // 错误详细记录（仅在非静默模式下）
-  if (!isSuccess && !__ENV.QUIET) {
-    console.warn(`❌ 请求失败: 状态码=${createSessionResponse.status}, 响应时间=${createSessionResponse.timings.duration.toFixed(2)}ms, IP=${randomIP}`);
+  // 仅在严重错误时记录（状态码0表示网络连接失败）
+  if (createSessionResponse.status === 0 && !__ENV.QUIET) {
+    console.warn(`❌ 网络连接失败: 响应时间=${createSessionResponse.timings.duration.toFixed(2)}ms`);
   }
 }
 
 // 测试设置阶段
 export function setup() {
   const startTime = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
-  const preAllocatedVUs = Math.max(Math.ceil(TARGET_QPS * 2.5), 8);
-  const maxVUs = Math.max(Math.ceil(TARGET_QPS * 4), 15);
+  const preAllocatedVUs = Math.max(Math.ceil(TARGET_QPS * 5), 10);
+  const maxVUs = Math.max(Math.ceil(TARGET_QPS * 10), 20);
   
-  console.log('🎯 开始 guest/create-session 精准VU分配QPS测试...');
+  console.log('🎯 开始 guest/create-session 平衡VU分配QPS测试...');
   console.log(`⚡ 目标QPS: ${TARGET_QPS} | 预分配VU: ${preAllocatedVUs} | 最大VU: ${maxVUs}`);
   console.log(`🕐 测试时间: ${startTime} (持续10分钟)`);
-  console.log('🔧 优化策略: 精准VU分配（2.5-4倍），避免发压机资源过载导致状态码0');
-  console.log('⚠️  修复: 大幅降低VU数量，启用连接复用，减少系统资源消耗');
+  console.log('🔧 优化策略: 平衡VU分配（5-10倍），保障QPS稳定性与资源效率');
+  console.log('⚠️  修复: 优化VU数量，启用连接复用，减少系统资源消耗');
   console.log('💡 提示: 使用 k6 run --quiet 命令减少调试输出');
   
   return { baseUrl: config.baseUrl };
