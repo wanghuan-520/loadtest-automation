@@ -37,9 +37,9 @@ export const options = {
       timeUnit: '1s',                // 时间单位：1秒
       duration: '10m',               // 测试持续时间：10分钟
       // 🎯 QPS超稳定配置：基于实际响应时间38ms动态调整VU分配
-      // 实际测试显示平均响应时间仅38ms，大幅降低VU需求
-      preAllocatedVUs: Math.min(Math.max(TARGET_QPS * 2, 3), 50),   // 2倍预分配，38ms响应时间下足够
-      maxVUs: Math.min(Math.max(TARGET_QPS * 4, 6), 100),          // 4倍最大值，应对偶发延迟波动
+      // 实际测试显示平均响应时间仅38ms，但高QPS时仍需足够VU资源
+      preAllocatedVUs: Math.max(Math.ceil(TARGET_QPS * 2), 3),     // 2倍预分配，移除上限限制
+      maxVUs: Math.max(Math.ceil(TARGET_QPS * 4), 6),              // 4倍最大值，移除上限限制
       tags: { test_type: 'fixed_qps_ultra_stable' },
     },
   },
@@ -131,8 +131,8 @@ export default function () {
 // 测试设置阶段
 export function setup() {
   const startTime = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
-  const preAllocatedVUs = Math.min(Math.max(TARGET_QPS * 2, 3), 50);
-  const maxVUs = Math.min(Math.max(TARGET_QPS * 4, 6), 100);
+  const preAllocatedVUs = Math.max(Math.ceil(TARGET_QPS * 2), 3);
+  const maxVUs = Math.max(Math.ceil(TARGET_QPS * 4), 6);
   
   console.log('🎯 开始 guest/create-session 超稳定QPS压力测试...');
   console.log(`⚡ 目标QPS: ${TARGET_QPS} | 预分配VU: ${preAllocatedVUs} | 最大VU: ${maxVUs}`);
