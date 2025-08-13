@@ -61,7 +61,7 @@ export default function (data) {
   const startTime = Date.now();
   
   // 构造获取会话信息请求 - 固定使用指定会话ID
-  const sessionInfoUrl = `${data.baseUrl}/godgpt/session-info/e0fd9720-177c-40b2-8ae7-62b1a20d93de`;
+  const sessionInfoUrl = `${data.baseUrl}/godgpt/session-info/95745893-92a8-4370-b6aa-107603ec165f`;
   
   // 构造请求头 - 匹配curl命令，包含authorization token
   const sessionInfoHeaders = {
