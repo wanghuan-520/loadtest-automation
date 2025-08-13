@@ -49,21 +49,26 @@ export const options = {
       rate: TARGET_QPS,              // 每秒请求数（QPS）
       timeUnit: '1s',                // 时间单位：1秒
       duration: '10m',               // 测试持续时间：10分钟
-      // 🎯 QPS超稳定配置：基于实际高QPS测试结果动态调整VU分配
-      // 实际测试发现高QPS时需要更多VU资源（网络延迟、服务器处理时间等因素）
-      preAllocatedVUs: Math.max(Math.ceil(TARGET_QPS * 6), 10),    // 6倍预分配，应对实际网络延迟
-      maxVUs: Math.max(Math.ceil(TARGET_QPS * 10), 20),            // 10倍最大值，确保充足资源
+      // 🎯 VU精准分配：避免发压机资源过载导致的状态码0问题
+      // 根据实际网络延迟优化：平均38ms响应时间 + 网络开销，2-3倍VU足够
+      preAllocatedVUs: Math.max(Math.ceil(TARGET_QPS * 2.5), 8),   // 2.5倍预分配，平衡性能与资源
+      maxVUs: Math.max(Math.ceil(TARGET_QPS * 4), 15),             // 4倍最大值，避免资源过载
       tags: { test_type: 'fixed_qps_ultra_stable' },
     },
   },
-  // 🔧 QPS平滑优化：连接池与请求调度精细调节
+  // 🔧 资源优化：减少发压机负载，避免状态码0
   batch: 1,                          // 单请求模式，确保精确QPS控制
   batchPerHost: 1,                   // 每主机单批次，避免请求堆积
-  noConnectionReuse: false,          // 启用连接复用，减少握手开销
+  noConnectionReuse: false,          // 启用连接复用，减少资源消耗
   noVUConnectionReuse: false,        // 启用VU内连接复用，提升稳定性
   userAgent: 'k6-loadtest/1.0',      // 统一User-Agent
-  // 🎯 请求调度精细优化
+  // 🎯 连接池优化：避免资源过载
   discardResponseBodies: false,      // 保持响应体，确保完整测试
+  // 连接池大小限制（减少并发连接数）
+  maxRedirects: 5,                   // 限制重定向次数
+  // DNS和连接超时优化
+  setupTimeout: '30s',               // 设置阶段超时
+  teardownTimeout: '10s',            // 清理阶段超时
   // 📊 完整响应时间统计信息
   summaryTrendStats: ['avg', 'min', 'med', 'max', 'p(90)', 'p(95)'], // 显示完整的响应时间分布
   // 注释掉阈值设置，只关注QPS稳定性，不验证响应质量
@@ -158,14 +163,14 @@ export default function (data) {
 // 测试设置阶段
 export function setup() {
   const startTime = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
-  const preAllocatedVUs = Math.max(Math.ceil(TARGET_QPS * 6), 10);
-  const maxVUs = Math.max(Math.ceil(TARGET_QPS * 10), 20);
+  const preAllocatedVUs = Math.max(Math.ceil(TARGET_QPS * 2.5), 8);
+  const maxVUs = Math.max(Math.ceil(TARGET_QPS * 4), 15);
   
-  console.log('🎯 开始 user/create-session 超稳定QPS压力测试...');
+  console.log('🎯 开始 user/create-session 精准VU分配QPS测试...');
   console.log(`⚡ 目标QPS: ${TARGET_QPS} | 预分配VU: ${preAllocatedVUs} | 最大VU: ${maxVUs}`);
   console.log(`🕐 测试时间: ${startTime} (持续10分钟)`);
-  console.log('🔧 优化策略: 基于实际38ms响应时间优化VU配置，大幅减少dropped_iterations');
-  console.log('⚠️  修复: 降低超时时间至30s，优化VU分配算法，支持更多HTTP状态码');
+  console.log('🔧 优化策略: 精准VU分配（2.5-4倍），避免发压机资源过载导致状态码0');
+  console.log('⚠️  修复: 大幅降低VU数量，启用连接复用，减少系统资源消耗');
   console.log('💡 提示: 使用 k6 run --quiet 命令减少调试输出');
   
   return setupTest(
