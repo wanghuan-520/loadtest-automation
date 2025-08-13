@@ -119,9 +119,22 @@ export default function (data) {
     'HTTP状态码200': (r) => r.status === 200,
     '业务代码20000': (r) => {
       try {
+        // 调试：输出响应体内容（前100字符）
+        if (!__ENV.QUIET && r.body) {
+          console.log(`📋 响应体样本: ${r.body.substring(0, 100)}...`);
+        }
         const data = JSON.parse(r.body);
-        return data.code === "20000";
-      } catch {
+        const isSuccess = data.code === "20000";
+        // 调试：如果不是20000，输出实际的code值
+        if (!isSuccess && !__ENV.QUIET) {
+          console.log(`⚠️  业务代码不是20000: ${data.code || 'undefined'}`);
+        }
+        return isSuccess;
+      } catch (e) {
+        // 调试：输出JSON解析错误详情
+        if (!__ENV.QUIET) {
+          console.log(`❌ JSON解析失败: ${e.message}, 响应体: "${r.body}"`);
+        }
         return false;
       }
     },
