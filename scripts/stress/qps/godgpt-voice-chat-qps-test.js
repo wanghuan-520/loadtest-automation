@@ -222,9 +222,35 @@ export default function (data) {
       
       checkResults['业务逻辑成功'] = result;
       
-      // 只在失败时打印日志
+      // 只在失败时打印详细日志
       if (!result) {
         console.log(`❌ 接口无数据返回 [会话: ${sessionId.substring(0, 8)}...]: 状态码=${r.status}, 数据长度=${r.body ? r.body.length : 0}`);
+        
+        // 打印响应体内容（前200字符）用于调试
+        if (r.body) {
+          const bodyPreview = r.body.length > 200 ? r.body.substring(0, 200) + '...' : r.body;
+          console.log(`   响应内容: ${bodyPreview}`);
+        }
+        
+        // 对特定状态码给出分析建议
+        if (r.status === 524) {
+          console.log(`   💡 524错误分析: CloudFlare/网关超时 - 服务端处理语音请求超时，可能原因:`);
+          console.log(`      - 语音文件过大或处理复杂度高`);
+          console.log(`      - 服务端负载过高，处理队列拥堵`);
+          console.log(`      - CloudFlare代理超时配置过短`);
+          console.log(`      - 建议检查服务端日志和负载情况`);
+        } else if (r.status === 502) {
+          console.log(`   💡 502错误分析: 网关错误 - 上游服务不可用`);
+        } else if (r.status === 503) {
+          console.log(`   💡 503错误分析: 服务暂不可用 - 可能维护或过载`);
+        } else if (r.status === 504) {
+          console.log(`   💡 504错误分析: 网关超时 - 上游服务响应超时`);
+        }
+        
+        // 打印请求耗时信息
+        if (r.timings) {
+          console.log(`   请求耗时: ${r.timings.duration}ms (DNS: ${r.timings.dns || 0}ms, 连接: ${r.timings.connecting || 0}ms, 等待: ${r.timings.waiting || 0}ms)`);
+        }
       }
       
       return result;
@@ -240,14 +266,47 @@ export default function (data) {
     voiceChatDuration.add(voiceChatResponse.timings.duration);
   }
   
-  // 如果语音聊天失败，记录错误信息用于调试（可通过SHOW_RESPONSE_DETAILS控制）
+  // 如果语音聊天失败，记录详细错误信息用于调试（可通过SHOW_RESPONSE_DETAILS控制）
   if (!isVoiceChatSuccess && SHOW_RESPONSE_DETAILS) {
     console.error(`❌ 语音聊天失败 [会话: ${sessionId.substring(0, 8)}...] 状态码: ${voiceChatResponse.status}`);
     console.error(`   失败检查项: ${Object.entries(checkResults)
       .filter(([key, value]) => !value)
       .map(([key, value]) => key)
       .join(', ')}`);
+    
+    // 添加更多调试信息
+    if (voiceChatResponse.status !== 200) {
+      console.error(`   HTTP错误详情: ${voiceChatResponse.status} - ${getStatusCodeDescription(voiceChatResponse.status)}`);
+      
+      // 打印错误响应的header信息（如果有的话）
+      if (voiceChatResponse.headers) {
+        const relevantHeaders = ['content-type', 'content-length', 'server', 'cf-ray', 'cf-cache-status'];
+        relevantHeaders.forEach(header => {
+          if (voiceChatResponse.headers[header]) {
+            console.error(`   Header-${header}: ${voiceChatResponse.headers[header]}`);
+          }
+        });
+      }
+    }
   }
+}
+
+// 添加状态码描述函数
+function getStatusCodeDescription(statusCode) {
+  const descriptions = {
+    0: '请求超时或网络错误',
+    400: '请求参数错误',
+    401: '未授权访问',
+    403: '禁止访问',
+    404: '接口不存在',
+    429: '请求频率过高',
+    500: '服务器内部错误',
+    502: '网关错误 - 上游服务不可用',
+    503: '服务暂不可用',
+    504: '网关超时 - 上游服务响应超时', 
+    524: 'CloudFlare超时 - 源服务器处理超时'
+  };
+  return descriptions[statusCode] || '未知错误';
 }
 
 // 测试设置阶段 - 使用通用的auth setup函数
