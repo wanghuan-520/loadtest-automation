@@ -22,7 +22,7 @@ export function getAccessToken(tokenConfig = {}) {
   console.log('🔄 正在动态获取Bearer Token...');
   
   // 从环境变量获取用户名和密码，或使用默认值
-  const username = __ENV.AUTH_USERNAME || 'loadtestloadwh2@teml.net';
+  const username = __ENV.AUTH_USERNAME || 'loadtestloadwh1@teml.net';
   const password = __ENV.AUTH_PASSWORD || 'Wh520520!';
   
   // 动态获取token - 使用password模式
