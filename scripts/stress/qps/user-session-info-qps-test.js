@@ -35,7 +35,7 @@ export const options = {
       executor: 'constant-arrival-rate',
       rate: TARGET_QPS,              // 每秒请求数（QPS）
       timeUnit: '1s',                // 时间单位：1秒
-      duration: '10m',               // 测试持续时间：10分钟
+      duration: '5m',                // 测试持续时间：5分钟
       // 🎯 QPS超稳定配置：基于实际响应时间动态调整VU分配
       // 实际测试显示平均响应时间仅38ms，大幅降低VU需求
       preAllocatedVUs: Math.min(Math.max(TARGET_QPS * 2, 3), 50),   // 2倍预分配，38ms响应时间下足够
