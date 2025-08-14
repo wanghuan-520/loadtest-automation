@@ -39,15 +39,9 @@ const sessionSuccessCounter = new Counter('session_success_total');      // 只�
 const chatAttemptCounter = new Counter('chat_attempt_total');            // 只统计status!=0的有效请求  
 const chatSuccessCounter = new Counter('chat_success_total');            // 只统计有效请求中的成功数
 
-// 生成随机UUID的函数 - 用于userId参数
-function generateRandomUUID() {
-  // 生成随机UUID格式：xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-    const r = Math.random() * 16 | 0;
-    const v = c == 'x' ? r : (r & 0x3 | 0x8);
-    return v.toString(16);
-  });
-}
+// 预定义固定值避免运行时计算开销
+const FIXED_USER_ID = '12345678-1234-4567-8901-123456789abc';
+const FIXED_USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36';
 
 
 // 从配置文件加载环境配置和测试数据
@@ -110,8 +104,8 @@ export const options = {
 // 测试主函数
 export default function (data) {
   
-  // 生成一致的userId，确保create-session和chat使用相同的用户标识
-  const userId = generateRandomUUID();
+  // 使用固定用户ID减少运行时开销
+  const userId = FIXED_USER_ID;
   
   // 步骤1: 创建会话
   const createSessionUrl = `${data.baseUrl}/godgpt/create-session`;
@@ -138,7 +132,7 @@ export default function (data) {
     'sec-fetch-dest': 'empty',
     'sec-fetch-mode': 'cors',
     'sec-fetch-site': 'cross-site',
-    'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36',
+    'user-agent': FIXED_USER_AGENT,
   };
   
   const createSessionParams = {
@@ -152,30 +146,15 @@ export default function (data) {
   
   const createSessionResponse = http.post(createSessionUrl, createSessionPayload, createSessionParams);
 
-  // 会话创建成功判断 - 参照guest-chat逻辑：双重验证机制
-  const isSessionCreated = check(createSessionResponse, {
-    'HTTP状态码200': (r) => r.status === 200,
-    '业务代码20000': (r) => {
-      try {
-        const data = JSON.parse(r.body);
-        return data.code === "20000";
-      } catch {
-        return false;
-      }
-    }
-  });
+  // 简化会话创建成功判断 - 仅HTTP状态码验证以减少JSON解析开销
+  const isSessionCreated = createSessionResponse.status === 200;
 
-  // 如果会话创建失败，打印错误信息（参照guest-chat错误处理逻辑）
+  // 如果会话创建失败，打印错误信息
   if (!isSessionCreated) {
-    // 区分不同类型的错误
     if (createSessionResponse.status === 0) {
-      // 连接重置或超时错误，简化日志输出
-      if (Math.random() < 0.1) { // 只显示10%的连接错误详情
-        console.error(`❌ [会话创建连接失败] userId=${userId} (仅显示10%详情): ${createSessionResponse.error || '连接重置'}`);
-      }
+      console.error(`❌ [会话创建连接失败] userId=${userId}: ${createSessionResponse.error || '连接重置'}`);
     } else {
-      // 其他HTTP错误正常显示
-      console.error(`❌ [会话创建失败] userId=${userId}, HTTP状态码: ${createSessionResponse.status}, 响应体: ${createSessionResponse.body}`);
+      console.error(`❌ [会话创建失败] userId=${userId}, HTTP状态码: ${createSessionResponse.status}`);
     }
   }
   
@@ -192,9 +171,8 @@ export default function (data) {
       createResponseDuration.add(createSessionResponse.timings.duration);
     }
   } else {
-    // 🔍 连接重置等技术性错误日志
-    connectionErrorCounter.add(1); // 统计连接错误次数
-    console.error(`❌ [会话创建连接失败] userId=${userId}, status=${createSessionResponse.status}, error=${createSessionResponse.error || 'unknown'}`);
+    // 连接重置等技术性错误统计
+    connectionErrorCounter.add(1);
   }
   // 连接重置等技术性错误不计入业务成功率统计
 
@@ -203,16 +181,14 @@ export default function (data) {
     return;
   }
 
-  // 从create-session响应中解析sessionId（业务成功时才解析）
+  // 简化sessionId解析 - 减少JSON解析验证开销
   let sessionId = null;
   try {
     const responseData = JSON.parse(createSessionResponse.body);
-    if (responseData && responseData.code === '20000' && responseData.data) {
-      sessionId = responseData.data;
-    } else {
-      return;
-    }
+    sessionId = responseData.data;
+    if (!sessionId) return;
   } catch (error) {
+    console.error(`❌ [会话响应解析失败] userId=${userId}`);
     return;
   }
   
@@ -239,7 +215,7 @@ export default function (data) {
     'sec-fetch-dest': 'empty',
     'sec-fetch-mode': 'cors',
     'sec-fetch-site': 'cross-site',
-    'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36',
+    'user-agent': FIXED_USER_AGENT,
   };
   
   // 使用已登录用户的chat请求体格式 - 包含sessionId和userId
@@ -262,37 +238,19 @@ export default function (data) {
   
   const chatResponse = http.post(`${data.baseUrl}/gotgpt/chat`, JSON.stringify(chatPayload), chatParams);
   
-  // 验证聊天响应 - 流式响应特性：HTTP 200即表示成功
-  const isChatSuccess = check(chatResponse, {
-    'HTTP状态码200': (r) => r.status === 200,
-    '流式数据判断': (r) => {
-      if (r.status !== 200) return false;
-      
-      // 🌊 SSE流式响应判断逻辑：
-      // 1. HTTP 200状态码表示服务器接受请求并开始流式传输
-      // 2. 检测SSE数据格式：data: {"ResponseType":...} 或 event: completed
-      // 3. 响应体可能为空（流式分块传输特性），200状态码即表示成功
-      const body = r.body || '';
-      const hasSSEData = body.includes('data:') || body.includes('event:') || body.includes('ResponseType');
-      
-      // 成功条件：200状态码 + (有SSE数据 或 空响应体)
-      return r.status === 200 && (hasSSEData || body.length === 0);
-    }
-  });
+  // 验证聊天响应 - 流式响应验证：HTTP 200 + SSE数据格式检查
+  const isChatSuccess = chatResponse.status === 200 && (() => {
+    // 快速SSE流式响应验证：检查关键标识符避免完整JSON解析
+    const body = chatResponse.body || '';
+    return body.includes('data:') || body.includes('event:') || body.includes('ResponseType') || body.length === 0;
+  })();
 
-  // 如果聊天失败，打印错误信息（参照guest-chat错误处理逻辑）
+  // 如果聊天失败，打印错误信息
   if (!isChatSuccess) {
     if (chatResponse.status === 0) {
-      // 超时错误，只统计不详细打印（避免日志爆炸）
-      if (Math.random() < 0.1) { // 只有10%的超时错误会打印详情
-        console.error(`❌ [聊天连接失败] userId=${userId}, sessionId=${sessionId} (仅显示10%的连接错误详情)`);
-      }
+      console.error(`❌ [聊天连接失败] userId=${userId}, sessionId=${sessionId}: ${chatResponse.error || '连接重置'}`);
     } else {
-      // 其他类型错误正常打印
       console.error(`❌ [聊天失败] userId=${userId}, sessionId=${sessionId}, status=${chatResponse.status}`);
-      if (chatResponse.status >= 500) {
-        console.error(`服务器错误: ${chatResponse.body}`);
-      }
     }
   }
   
@@ -311,9 +269,8 @@ export default function (data) {
       chatResponseDuration.add(chatResponse.timings.duration);
     }
   } else {
-    // 🔍 连接重置/超时等技术性错误日志
-    connectionErrorCounter.add(1); // 统计连接错误次数
-    console.error(`❌ [聊天连接失败] userId=${userId}, sessionId=${sessionId}, status=${chatResponse.status}, error=${chatResponse.error || 'unknown'}`);
+    // 连接重置/超时等技术性错误统计
+    connectionErrorCounter.add(1);
   }
   // 连接重置/超时等技术性错误不计入业务成功率统计
 

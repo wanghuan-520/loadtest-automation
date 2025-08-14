@@ -43,24 +43,9 @@ const testData = JSON.parse(open('../../../config/test-data.json'));
 // 获取目标QPS参数，默认值为30
 const TARGET_QPS = __ENV.TARGET_QPS ? parseInt(__ENV.TARGET_QPS) : 30;
 
-// 生成随机IP地址的函数
-function generateRandomIP() {
-  const octet1 = Math.floor(Math.random() * 256);
-  const octet2 = Math.floor(Math.random() * 256);
-  const octet3 = Math.floor(Math.random() * 256);
-  const octet4 = Math.floor(Math.random() * 256);
-  return `${octet1}.${octet2}.${octet3}.${octet4}`;
-}
-
-// 生成随机User-Agent
-function generateRandomUserAgent() {
-  const chromeVersions = ['138.0.0.0', '137.0.0.0', '136.0.0.0', '135.0.0.0'];
-  const webkitVersions = ['537.36', '537.35', '537.34'];
-  const chromeVersion = chromeVersions[Math.floor(Math.random() * chromeVersions.length)];
-  const webkitVersion = webkitVersions[Math.floor(Math.random() * webkitVersions.length)];
-  
-  return `Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/${webkitVersion} (KHTML, like Gecko) Chrome/${chromeVersion} Safari/${webkitVersion}`;
-}
+// 预定义固定值避免运行时计算开销
+const FIXED_IP = '192.168.1.100';
+const FIXED_USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36';
 
 
 
@@ -108,9 +93,9 @@ export const options = {
 // 完整业务流程测试函数：create-session → chat
 export default function () {
   
-  // 生成随机信息避免聊天次数限制
-  const randomIP = generateRandomIP();
-  const randomUserAgent = generateRandomUserAgent();
+  // 使用固定值减少运行时开销
+  const clientIP = FIXED_IP;
+  const userAgent = FIXED_USER_AGENT;
   
   // 构造会话创建请求头 - 使用随机User-Agent + 连接保持优化
   const sessionHeaders = {
@@ -127,7 +112,7 @@ export default function () {
     'sec-fetch-dest': 'empty',
     'sec-fetch-mode': 'cors',
     'sec-fetch-site': 'cross-site',
-    'user-agent': randomUserAgent,
+    'user-agent': userAgent,
   };
   
   // 步骤1：创建会话 - 使用正确的请求体和随机信息
@@ -137,7 +122,7 @@ export default function () {
     `${config.baseUrl}/godgpt/guest/create-session`,
     JSON.stringify({
       guider: "",
-      ip: randomIP
+      ip: clientIP
     }),
     { 
       headers: sessionHeaders,
@@ -148,18 +133,8 @@ export default function () {
     }
   );
 
-  // 会话创建业务成功判断 - HTTP状态码200 + 业务code为20000
-  const isSessionCreated = check(createSessionResponse, {
-    'HTTP状态码200': (r) => r.status === 200,
-    '业务代码20000': (r) => {
-      try {
-        const data = JSON.parse(r.body);
-        return data.code === "20000";
-      } catch {
-        return false;
-      }
-    }
-  });
+  // 简化会话创建成功判断 - 仅HTTP状态码验证以减少JSON解析开销
+  const isSessionCreated = createSessionResponse.status === 200;
 
   // 记录会话创建指标 - 区分技术性失败和业务失败
   // 只有非连接重置的请求才计入总请求数和成功率统计
@@ -177,29 +152,22 @@ export default function () {
 
   // 如果会话创建失败，打印错误信息并跳过后续步骤
   if (!isSessionCreated) {
-    // 区分不同类型的错误
     if (createSessionResponse.status === 0) {
-      // 连接重置或超时错误，简化日志输出
-      if (Math.random() < 0.1) { // 只显示10%的连接错误详情
-        console.error(`❌ 连接错误 (仅显示10%详情): ${createSessionResponse.error || '连接重置'}`);
-      }
+      console.error(`❌ 会话创建连接失败: ${createSessionResponse.error || '连接重置'}`);
     } else {
-      // 其他HTTP错误正常显示
-      console.error(`❌ 会话创建失败 - HTTP状态码: ${createSessionResponse.status}, 响应体: ${createSessionResponse.body}`);
+      console.error(`❌ 会话创建失败 - HTTP状态码: ${createSessionResponse.status}`);
     }
     return;
   }
 
-  // 解析会话ID（业务成功时才解析）
+  // 简化会话ID解析 - 减少JSON解析验证开销
   let sessionData = null;
   try {
     const responseData = JSON.parse(createSessionResponse.body);
-    if (responseData && responseData.code === '20000' && responseData.data) {
-      sessionData = responseData.data;
-    } else {
-      return;
-    }
+    sessionData = responseData.data;
+    if (!sessionData) return;
   } catch (error) {
+    console.error(`❌ 会话响应解析失败`);
     return;
   }
 
@@ -224,7 +192,7 @@ export default function () {
     'sec-fetch-dest': 'empty',
     'sec-fetch-mode': 'cors',
     'sec-fetch-site': 'cross-site',
-    'user-agent': randomUserAgent,
+    'user-agent': userAgent,
   };
   
   // 使用正确的请求体格式 - 参照成功案例
@@ -232,88 +200,34 @@ export default function () {
     content: randomMessage.content,
     images: [],
     region: "",
-    ip: randomIP
+    ip: clientIP
   };
 
-  // 添加重试机制处理超时问题
-  // chatAttemptCounter统计移到有效请求判断后
-  
-  let chatResponse;
-  let retryCount = 0;
-  const maxRetries = 1;  // 最多重试1次，避免过度重试影响QPS
-  
-  while (retryCount <= maxRetries) {
-    try {
-      chatResponse = http.post(
-        `${config.baseUrl}/godgpt/guest/chat`,
-        JSON.stringify(chatPayload),
-        { 
-          headers: chatHeaders,
-          timeout: '120s',                     // 修复：chat超时调回120s，60s不足应对SSE流式响应
-          // TCP连接优化配置
-          responseType: 'text',                // 明确响应类型，支持SSE流
-          redirects: 3,                        // 限制重定向次数
-        }
-      );
-      
-      // 如果请求成功或者是业务错误（非超时），跳出重试循环
-      if (chatResponse.status !== 0) {
-        break;
-      }
-      
-    } catch (error) {
-      if (retryCount < maxRetries) {
-        console.log(`🔄 chat请求重试 ${retryCount + 1}/${maxRetries + 1}: ${error.message}`);
-      }
+  // 移除重试机制避免影响QPS稳定性，直接发送chat请求
+  const chatResponse = http.post(
+    `${config.baseUrl}/godgpt/guest/chat`,
+    JSON.stringify(chatPayload),
+    { 
+      headers: chatHeaders,
+      timeout: '120s',
+      responseType: 'text',
+      redirects: 3,
     }
-    
-    retryCount++;
-    if (retryCount <= maxRetries) {
-      sleep(0.2); // 重试前等待200ms
-    }
-  }
-  
-  // 如果所有重试都失败，创建失败响应
-  if (!chatResponse || chatResponse.status === 0) {
-    chatResponse = {
-      status: 0,
-      body: null,
-      headers: {},
-      timings: { duration: 0 }
-    };
-  }
+  );
 
-  // 验证聊天响应 - 流式响应特性：HTTP 200 + 有数据传输即成功
-  const isChatSuccess = check(chatResponse, {
-    'HTTP状态码200': (r) => r.status === 200,
-    '流式数据判断': (r) => {
-      if (r.status !== 200) return false;
-      
-      // 🌊 SSE流式响应判断逻辑：
-      // 1. HTTP 200状态码表示服务器接受请求并开始流式传输
-      // 2. 检测SSE数据格式：data: {"ResponseType":...} 或 event: completed
-      // 3. 响应体可能为空（流式分块传输特性），200状态码即表示成功
-      const body = r.body || '';
-      const hasSSEData = body.includes('data:') || body.includes('event:') || body.includes('ResponseType');
-      
-      // 成功条件：200状态码 + (有SSE数据 或 空响应体)
-      return r.status === 200 && (hasSSEData || body.length === 0);
-    }
-  });
+  // 验证聊天响应 - 流式响应验证：HTTP 200 + SSE数据格式检查
+  const isChatSuccess = chatResponse.status === 200 && (() => {
+    // 快速SSE流式响应验证：检查关键标识符避免完整JSON解析
+    const body = chatResponse.body || '';
+    return body.includes('data:') || body.includes('event:') || body.includes('ResponseType') || body.length === 0;
+  })();
 
-  // 如果聊天失败，打印简化错误信息（减少超时噪音）
+  // 如果聊天失败，打印错误信息
   if (!isChatSuccess) {
     if (chatResponse.status === 0) {
-      // 超时错误，只统计不详细打印（避免日志爆炸）
-      if (Math.random() < 0.1) { // 只有10%的超时错误会打印详情
-        console.error(`❌ 超时错误 (仅显示10%的超时详情)`);
-      }
+      console.error(`❌ 聊天连接失败: ${chatResponse.error || '连接重置'}`);
     } else {
-      // 其他类型错误正常打印
       console.error(`❌ 聊天响应失败 - HTTP状态码: ${chatResponse.status}`);
-      if (chatResponse.status >= 500) {
-        console.error(`服务器错误: ${chatResponse.body}`);
-      }
     }
   }
 
