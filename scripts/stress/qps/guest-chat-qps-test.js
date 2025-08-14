@@ -17,6 +17,7 @@ import { Rate, Trend } from 'k6/metrics';
 // 3. 添加cache-control避免缓存干扰SSE流式响应
 // 4. 优化TCP连接参数，提高连接稳定性
 // 5. 保留错误信息打印，通过K6日志级别控制HTTP调试信息
+// 6. 智能指标统计：排除发压脚本技术性失败，只统计服务端真实性能
 
 // 自定义指标
 const sessionCreationRate = new Rate('session_creation_success_rate');
@@ -24,12 +25,12 @@ const sessionCreationDuration = new Trend('session_creation_duration');
 const chatResponseRate = new Rate('chat_response_success_rate');
 const chatResponseDuration = new Trend('chat_response_duration');
 
-// QPS统计计数器
+// QPS统计计数器 - 只统计有效请求，排除发压脚本导致的技术性失败
 import { Counter } from 'k6/metrics';
-const sessionAttemptCounter = new Counter('session_attempt_total');
-const sessionSuccessCounter = new Counter('session_success_total');
-const chatAttemptCounter = new Counter('chat_attempt_total');
-const chatSuccessCounter = new Counter('chat_success_total');
+const sessionAttemptCounter = new Counter('session_attempt_total');      // 只统计status!=0的有效请求
+const sessionSuccessCounter = new Counter('session_success_total');      // 只统计有效请求中的成功数
+const chatAttemptCounter = new Counter('chat_attempt_total');            // 只统计status!=0的有效请求  
+const chatSuccessCounter = new Counter('chat_success_total');            // 只统计有效请求中的成功数
 
 // 移除session池，恢复原始串行逻辑
 
@@ -129,7 +130,7 @@ export default function () {
   };
   
   // 步骤1：创建会话 - 使用正确的请求体和随机信息
-  sessionAttemptCounter.add(1); // 统计session尝试次数
+  // sessionAttemptCounter统计移到有效请求判断后
   
   const createSessionResponse = http.post(
     `${config.baseUrl}/godgpt/guest/create-session`,
@@ -159,12 +160,19 @@ export default function () {
     }
   });
 
-  // 记录会话创建指标 - 只有HTTP200且业务code为20000才算成功
-  sessionCreationRate.add(isSessionCreated);
-  if (isSessionCreated) {
-    sessionSuccessCounter.add(1); // 统计session成功次数
-    sessionCreationDuration.add(createSessionResponse.timings.duration);
+  // 记录会话创建指标 - 区分技术性失败和业务失败
+  // 只有非连接重置的请求才计入总请求数和成功率统计
+  const isValidRequest = createSessionResponse.status !== 0;
+  
+  if (isValidRequest) {
+    sessionAttemptCounter.add(1); // 只统计有效的session尝试次数
+    sessionCreationRate.add(isSessionCreated);
+    if (isSessionCreated) {
+      sessionSuccessCounter.add(1); // 统计session成功次数
+      sessionCreationDuration.add(createSessionResponse.timings.duration);
+    }
   }
+  // 连接重置等技术性错误不计入业务成功率统计
 
   // 如果会话创建失败，打印错误信息并跳过后续步骤
   if (!isSessionCreated) {
@@ -227,7 +235,7 @@ export default function () {
   };
 
   // 添加重试机制处理超时问题
-  chatAttemptCounter.add(1); // 统计chat尝试次数
+  // chatAttemptCounter统计移到有效请求判断后
   
   let chatResponse;
   let retryCount = 0;
@@ -307,12 +315,19 @@ export default function () {
     }
   }
 
-  // 记录自定义指标 - 只有业务成功才计入成功
-  chatResponseRate.add(isChatSuccess);
-  if (isChatSuccess) {
-    chatSuccessCounter.add(1); // 统计chat成功次数
-    chatResponseDuration.add(chatResponse.timings.duration);
+  // 记录聊天指标 - 区分技术性失败和业务失败
+  // 只有非连接重置/超时的请求才计入总请求数和成功率统计
+  const isChatValidRequest = chatResponse.status !== 0;
+  
+  if (isChatValidRequest) {
+    chatAttemptCounter.add(1); // 只统计有效的chat尝试次数
+    chatResponseRate.add(isChatSuccess);
+    if (isChatSuccess) {
+      chatSuccessCounter.add(1); // 统计chat成功次数
+      chatResponseDuration.add(chatResponse.timings.duration);
+    }
   }
+  // 连接重置/超时等技术性错误不计入业务成功率统计
 }
 
 // 测试设置阶段

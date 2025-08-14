@@ -72,8 +72,8 @@ export const options = {
       duration: '10m',               // 测试持续时间：10分钟
       // 🎯 QPS超稳定配置：基于实测流程耗时优化VU分配
       // 实测流程：session + chat，合理分配VU资源
-      preAllocatedVUs: Math.min(Math.max(Math.ceil(TARGET_QPS * 5), 10), 60),   // 5倍预分配，确保充足VU资源
-      maxVUs: Math.min(Math.max(Math.ceil(TARGET_QPS * 10), 20), 100),          // 10倍最大值，支撑高并发场景
+      preAllocatedVUs: Math.max(Math.ceil(TARGET_QPS * 5), 50),   // 5倍预分配，确保充足VU资源
+      maxVUs: Math.max(Math.ceil(TARGET_QPS * 10), 150),          // 10倍最大值，确保高并发支撑
       tags: { test_type: 'fixed_qps_ultra_stable' },
     },
   },

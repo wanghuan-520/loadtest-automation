@@ -51,8 +51,8 @@ export const options = {
       duration: '10m',               // 测试持续时间：10分钟
       // 🎯 VU平衡分配：避免发压机资源过载导致的状态码0问题
       // 根据实际网络延迟优化：平均38ms响应时间 + 网络开销，5倍预分配更稳定
-      preAllocatedVUs: Math.max(Math.ceil(TARGET_QPS * 5), 10),    // 5倍预分配，保障QPS稳定性
-      maxVUs: Math.max(Math.ceil(TARGET_QPS * 10), 20),            // 10倍最大值，平衡资源与性能
+      preAllocatedVUs: Math.max(Math.ceil(TARGET_QPS * 5), 100),    // 5倍预分配，保障QPS稳定性
+      maxVUs: Math.max(Math.ceil(TARGET_QPS * 10), 200),            // 10倍最大值，平衡资源与性能
       tags: { test_type: 'fixed_qps_ultra_stable' },
     },
   },

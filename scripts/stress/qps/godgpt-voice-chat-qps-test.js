@@ -185,7 +185,16 @@ export default function (data) {
       }
     } else {
       // 其他HTTP错误正常显示
-      console.error(`❌ 语音聊天失败 - HTTP状态码: ${voiceChatResponse.status}, 响应体长度: ${voiceChatResponse.body ? voiceChatResponse.body.length : 0}`);
+      const statusCode = voiceChatResponse.status;
+      const bodyLength = voiceChatResponse.body ? voiceChatResponse.body.length : 0;
+      
+      if (statusCode === 524) {
+        console.error(`❌ 语音聊天失败 - HTTP状态码: ${statusCode} (Cloudflare超时，服务端处理时间过长), 响应体长度: ${bodyLength}`);
+      } else if (statusCode === 521) {
+        console.error(`❌ 语音聊天失败 - HTTP状态码: ${statusCode} (服务端拒绝连接或不可用), 响应体长度: ${bodyLength}`);
+      } else {
+        console.error(`❌ 语音聊天失败 - HTTP状态码: ${statusCode}, 响应体长度: ${bodyLength}`);
+      }
     }
   }
 
