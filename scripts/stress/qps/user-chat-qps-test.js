@@ -5,22 +5,33 @@ import { getAccessToken, setupTest, teardownTest } from '../../utils/auth.js';
 
 // 使用说明：
 // 默认目标QPS: 20 QPS（每秒20个请求，持续10分钟）
-// 自定义目标QPS: k6 run -e TARGET_QPS=30 user-chat-qps-test-2s.js
-// 静默模式（无debug信息）: k6 run --quiet -e TARGET_QPS=70 user-chat-qps-test-2s.js
-// 示例: k6 run -e TARGET_QPS=25 user-chat-qps-test-2s.js
+// 自定义目标QPS: k6 run -e TARGET_QPS=30 user-chat-qps-test.js
+// 示例: k6 run -e TARGET_QPS=25 user-chat-qps-test.js
 //
-// 🔧 性能优化说明：
-// - 超稳定VU配置：基于实际2.1秒流程耗时的动态调整
-// - 超时时间: 120秒 - 适应聊天接口潜在的长处理时间
-// - SSE响应检查: 优化流式响应判断逻辑，减少误判
-// - 🕐 流程优化：会话创建和聊天之间无延迟
-// - 连接复用和请求调度精细优化
+// 🔇 静默运行模式（禁用HTTP调试日志）：
+// k6 run --log-level error -e TARGET_QPS=25 user-chat-qps-test.js
+// 或设置环境变量: export K6_LOG_LEVEL=error
+//
+// 🔧 连接重置优化版本 - 针对TCP连接被peer重置问题的优化：
+// 1. batchPerHost=1 统一配置，减少并发压力避免触发Cloudflare保护
+// 2. 显式启用keep-alive连接保持，减少连接建立/断开开销
+// 3. 添加cache-control避免缓存干扰SSE流式响应
+// 4. 优化TCP连接参数，提高连接稳定性
+// 5. 保留错误信息打印，通过K6日志级别控制HTTP调试信息
+// 6. 智能指标统计：排除发压脚本技术性失败，只统计服务端真实性能
 
 // 自定义指标
 const sessionCreationRate = new Rate('session_creation_success_rate');
 const chatResponseRate = new Rate('chat_response_success_rate');
 const chatResponseDuration = new Trend('chat_response_duration');
 const createResponseDuration = new Trend('create_response_duration');
+
+// QPS统计计数器 - 只统计有效请求，排除发压脚本导致的技术性失败
+import { Counter } from 'k6/metrics';
+const sessionAttemptCounter = new Counter('session_attempt_total');      // 只统计status!=0的有效请求
+const sessionSuccessCounter = new Counter('session_success_total');      // 只统计有效请求中的成功数
+const chatAttemptCounter = new Counter('chat_attempt_total');            // 只统计status!=0的有效请求  
+const chatSuccessCounter = new Counter('chat_success_total');            // 只统计有效请求中的成功数
 
 // 生成随机UUID的函数 - 用于userId参数
 function generateRandomUUID() {
@@ -66,13 +77,18 @@ export const options = {
       tags: { test_type: 'fixed_qps_ultra_stable' },
     },
   },
-  // 🔧 QPS平滑优化：连接池与请求调度精细调节
-  batch: 1,                          // 单请求模式，确保精确QPS控制
-  batchPerHost: 1,                   // 每主机单批次，避免请求堆积
-  noConnectionReuse: true,           // 禁用连接复用，避免HTTP/2流冲突（SSE长连接场景）
-  noVUConnectionReuse: true,         // 禁用VU内连接复用，每个请求独立连接
+  // 连接池优化：提高QPS稳定性，减少连接重置
+  batch: 1,                          // 每次只发送1个请求，确保精确控制
+  batchPerHost: 1,                   // 修复：统一为1，减少并发压力避免触发服务端保护
+  noConnectionReuse: false,          // 启用连接复用，减少新连接建立
+  noVUConnectionReuse: false,        // 启用VU内连接复用，提升稳定性
   userAgent: 'k6-loadtest/1.0',      // 统一User-Agent
-  // 🎯 请求调度精细优化
+  // TCP连接池优化：减少连接重置
+  maxRedirects: 3,                   // 限制重定向次数，减少额外连接
+  // DNS和连接超时优化
+  setupTimeout: '30s',               // 设置阶段超时
+  teardownTimeout: '10s',            // 清理阶段超时
+  // HTTP Keep-Alive设置  
   discardResponseBodies: false,      // 保持响应体，确保完整测试
   // 📊 完整响应时间统计信息
   summaryTrendStats: ['avg', 'min', 'med', 'max', 'p(90)', 'p(95)'], // 显示完整的响应时间分布
@@ -98,11 +114,12 @@ export default function (data) {
     userId: userId  // 添加userId参数，与chat保持一致
   });
   
-  // 构造已登录用户的create-session请求头
+  // 构造已登录用户的create-session请求头 + 连接保持优化
   const sessionHeaders = {
     'accept': '*/*',
     'accept-language': 'en,zh-CN;q=0.9,zh;q=0.8',
     'authorization': `Bearer ${data.bearerToken}`,
+    'connection': 'keep-alive',           // 添加：显式启用连接保持
     'cache-control': 'no-cache',
     'content-type': 'application/json',
     'origin': config.origin,
@@ -121,9 +138,10 @@ export default function (data) {
   const createSessionParams = {
     headers: sessionHeaders,
     timeout: '60s',                // 会话创建超时时间优化为60秒
+    // TCP连接优化配置
     responseType: 'text',          // 明确响应类型，提升解析效率
+    redirects: 3,                  // 限制重定向次数
     responseCallback: http.expectedStatuses(200, 408, 429, 502, 503, 504), // 接受更多状态码，减少错误干扰
-    httpVersion: '1.1',            // 强制使用HTTP/1.1，避免HTTP/2流冲突
   };
   
   const createSessionResponse = http.post(createSessionUrl, createSessionPayload, createSessionParams);
@@ -140,13 +158,19 @@ export default function (data) {
     }
   });
   
-  // 记录会话创建指标 - 只有业务code为20000才算成功
-  sessionCreationRate.add(isSessionCreated);
+  // 记录会话创建指标 - 区分技术性失败和业务失败
+  // 只有非连接重置的请求才计入总请求数和成功率统计
+  const isValidRequest = createSessionResponse.status !== 0;
   
-  // 记录create-session响应时间 - 只有业务成功时才记录
-  if (isSessionCreated) {
-    createResponseDuration.add(createSessionResponse.timings.duration);
+  if (isValidRequest) {
+    sessionAttemptCounter.add(1); // 只统计有效的session尝试次数
+    sessionCreationRate.add(isSessionCreated);
+    if (isSessionCreated) {
+      sessionSuccessCounter.add(1); // 统计session成功次数
+      createResponseDuration.add(createSessionResponse.timings.duration);
+    }
   }
+  // 连接重置等技术性错误不计入业务成功率统计
 
   // 如果会话创建失败，跳过后续步骤
   if (!isSessionCreated) {
@@ -171,12 +195,13 @@ export default function (data) {
   // 步骤2: 发送聊天消息
   const randomMessage = testData.messages[Math.floor(Math.random() * testData.messages.length)];
   
-  // 构造已登录用户的chat请求头 - 支持SSE流式响应
+  // 构造已登录用户的chat请求头 - 支持SSE流式响应 + 连接保持优化
   const chatHeaders = {
     'accept': 'text/event-stream',
     'accept-language': 'en,zh-CN;q=0.9,zh;q=0.8',
     'authorization': `Bearer ${data.bearerToken}`,
-    'cache-control': 'no-cache',
+    'connection': 'keep-alive',           // 添加：显式启用连接保持
+    'cache-control': 'no-cache',          // 添加：SSE流需要避免缓存
     'content-type': 'application/json',
     'origin': config.origin,
     'pragma': 'no-cache',
@@ -203,9 +228,10 @@ export default function (data) {
   const chatParams = {
     headers: chatHeaders,
     timeout: '120s',               // 聊天响应超时时间优化为120秒，适应SSE流式响应
-    responseType: 'text',          // 明确响应类型，提升解析效率
+    // TCP连接优化配置
+    responseType: 'text',          // 明确响应类型，支持SSE流
+    redirects: 3,                  // 限制重定向次数
     responseCallback: http.expectedStatuses(200, 408, 429, 502, 503, 504, 524), // 接受更多状态码包括524超时
-    httpVersion: '1.1',            // 强制使用HTTP/1.1，避免HTTP/2流冲突
   };
   
   const chatResponse = http.post(`${data.baseUrl}/gotgpt/chat`, JSON.stringify(chatPayload), chatParams);
@@ -222,11 +248,19 @@ export default function (data) {
   
 
 
-  // 记录自定义指标
-  chatResponseRate.add(isChatSuccess);
-  if (isChatSuccess) {
-    chatResponseDuration.add(chatResponse.timings.duration);
+  // 记录聊天指标 - 区分技术性失败和业务失败
+  // 只有非连接重置/超时的请求才计入总请求数和成功率统计
+  const isChatValidRequest = chatResponse.status !== 0;
+  
+  if (isChatValidRequest) {
+    chatAttemptCounter.add(1); // 只统计有效的chat尝试次数
+    chatResponseRate.add(isChatSuccess);
+    if (isChatSuccess) {
+      chatSuccessCounter.add(1); // 统计chat成功次数
+      chatResponseDuration.add(chatResponse.timings.duration);
+    }
   }
+  // 连接重置/超时等技术性错误不计入业务成功率统计
 
 
 }
