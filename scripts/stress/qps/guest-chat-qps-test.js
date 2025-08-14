@@ -3,9 +3,15 @@ import { check, sleep } from 'k6';
 import { Rate, Trend } from 'k6/metrics';
 
 // 使用说明：
-// 默认目标QPS: 30 QPS（每秒30个请求，持续5分钟）
+// 默认目标QPS: 30 QPS（每秒30个请求，持续10分钟）
 // 自定义目标QPS: k6 run -e TARGET_QPS=50 guest-chat-qps-test.js
 // 示例: k6 run -e TARGET_QPS=40 guest-chat-qps-test.js
+//
+// 🔧 连接重置优化版本 - 针对TCP连接被peer重置问题的优化：
+// 1. batchPerHost=1 统一配置，减少并发压力避免触发Cloudflare保护
+// 2. 显式启用keep-alive连接保持，减少连接建立/断开开销
+// 3. 添加cache-control避免缓存干扰SSE流式响应
+// 4. 优化TCP连接参数，提高连接稳定性
 
 // 自定义指标
 const sessionCreationRate = new Rate('session_creation_success_rate');
@@ -70,13 +76,18 @@ export const options = {
   },
   // 连接池优化：提高QPS稳定性，减少连接重置
   batch: 1,                          // 每次只发送1个请求，确保精确控制
-  batchPerHost: 2,                   // 增加到2，提高并发处理能力
+  batchPerHost: 1,                   // 修复：统一为1，减少并发压力避免触发服务端保护
   noConnectionReuse: false,          // 启用连接复用，减少新连接建立
+  noVUConnectionReuse: false,        // 启用VU内连接复用，提升稳定性
   userAgent: 'k6-loadtest/1.0',      // 统一User-Agent
-  // HTTP连接池优化
-  insecureSkipTLSVerify: false,      // 保持TLS验证
-  tlsAuth: [],                       // TLS认证配置
-  hosts: {},                         // 主机映射
+  // TCP连接池优化：减少连接重置
+  maxRedirects: 3,                   // 限制重定向次数，减少额外连接
+  // DNS和连接超时优化
+  setupTimeout: '30s',               // 设置阶段超时
+  teardownTimeout: '10s',            // 清理阶段超时
+  // HTTP Keep-Alive设置
+  httpDebug: 'none',                 // 关闭调试日志，减少资源消耗
+  discardResponseBodies: false,      // 保持响应体，确保完整测试
   // 注释掉阈值设置，只关注QPS稳定性，不验证响应质量
   // thresholds: {
   //   http_req_failed: ['rate<0.01'],
@@ -95,11 +106,13 @@ export default function () {
   const randomIP = generateRandomIP();
   const randomUserAgent = generateRandomUserAgent();
   
-  // 构造会话创建请求头 - 使用随机User-Agent
+  // 构造会话创建请求头 - 使用随机User-Agent + 连接保持优化
   const sessionHeaders = {
     'accept': '*/*',
     'accept-language': 'zh-CN,zh;q=0.9',
     'content-type': 'application/json',
+    'connection': 'keep-alive',           // 添加：显式启用连接保持
+    'cache-control': 'no-cache',          // 添加：避免缓存干扰
     'origin': config.origin,
     'referer': config.referer,
     'sec-ch-ua': '"Not)A;Brand";v="8", "Chromium";v="138", "Google Chrome";v="138"',
@@ -123,6 +136,9 @@ export default function () {
     { 
       headers: sessionHeaders,
       timeout: '60s',                      // 增加：session创建超时调整为60s，应对网络波动
+      // TCP连接优化配置
+      responseType: 'text',                // 明确响应类型
+      redirects: 3,                        // 限制重定向次数
     }
   );
 
@@ -179,11 +195,13 @@ export default function () {
   // 步骤2：发送聊天消息
   const randomMessage = testData.messages[Math.floor(Math.random() * testData.messages.length)];
   
-  // 构造聊天请求头 - 参照成功案例格式，支持SSE流式响应
+  // 构造聊天请求头 - 参照成功案例格式，支持SSE流式响应 + 连接保持优化
   const chatHeaders = {
     'accept': 'text/event-stream',
     'accept-language': 'zh-CN,zh;q=0.9',
     'content-type': 'application/json',
+    'connection': 'keep-alive',           // 添加：显式启用连接保持
+    'cache-control': 'no-cache',          // 添加：SSE流需要避免缓存
     'origin': config.origin,
     'referer': config.referer,
     'priority': 'u=1, i',
@@ -219,6 +237,9 @@ export default function () {
         { 
           headers: chatHeaders,
           timeout: '120s',                     // 修复：chat超时调回120s，60s不足应对SSE流式响应
+          // TCP连接优化配置
+          responseType: 'text',                // 明确响应类型，支持SSE流
+          redirects: 3,                        // 限制重定向次数
         }
       );
       
