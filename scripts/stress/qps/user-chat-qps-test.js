@@ -20,6 +20,7 @@ import { getAccessToken, setupTest, teardownTest } from '../../utils/auth.js';
 // 5. 保留错误信息打印，通过K6日志级别控制HTTP调试信息
 // 6. 智能指标统计：排除发压脚本技术性失败，只统计服务端真实性能
 // 7. 流式响应优化：检测SSE数据格式（data: {"ResponseType":...} event: completed）
+// 8. 随机用户ID：每次请求使用不同的随机UUID v4格式用户ID，提高测试真实性
 
 // 自定义指标
 const sessionCreationRate = new Rate('session_creation_success_rate');
@@ -39,8 +40,24 @@ const sessionSuccessCounter = new Counter('session_success_total');      // 只�
 const chatAttemptCounter = new Counter('chat_attempt_total');            // 只统计status!=0的有效请求  
 const chatSuccessCounter = new Counter('chat_success_total');            // 只统计有效请求中的成功数
 
-// 预定义固定值避免运行时计算开销
-const FIXED_USER_ID = '12345678-1234-4567-8901-123456789abc';
+// 随机用户ID生成函数 - 生成符合UUID v4格式的随机用户ID
+function generateRandomUserId() {
+  // 生成16进制随机字符串
+  const hex = () => Math.floor(Math.random() * 16).toString(16);
+  const randomHex = (length) => Array.from({ length }, hex).join('');
+  
+  // 构造UUID v4格式: xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx
+  // 其中 y 的第一位必须是 8, 9, a, 或 b
+  const part1 = randomHex(8);
+  const part2 = randomHex(4);
+  const part3 = '4' + randomHex(3);  // UUID v4标识
+  const part4 = ['8', '9', 'a', 'b'][Math.floor(Math.random() * 4)] + randomHex(3);
+  const part5 = randomHex(12);
+  
+  return `${part1}-${part2}-${part3}-${part4}-${part5}`;
+}
+
+// 预定义固定值避免部分运行时计算开销
 const FIXED_USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36';
 
 
@@ -104,8 +121,8 @@ export const options = {
 // 测试主函数
 export default function (data) {
   
-  // 使用固定用户ID减少运行时开销
-  const userId = FIXED_USER_ID;
+  // 每次生成随机用户ID，确保测试的多样性
+  const userId = generateRandomUserId();
   
   // 步骤1: 创建会话
   const createSessionUrl = `${data.baseUrl}/godgpt/create-session`;
@@ -283,29 +300,30 @@ export function setup() {
   const preAllocatedVUs = Math.max(Math.ceil(TARGET_QPS * 5), 100);
   const maxVUs = Math.max(Math.ceil(TARGET_QPS * 10), 500);
   
-  console.log('🎯 开始 user/chat (无延迟版本) 超稳定QPS压力测试...');
+  console.log('🎯 开始 user/chat (随机用户ID版本) 超稳定QPS压力测试...');
   console.log(`⚡ 目标QPS: ${TARGET_QPS} | 预分配VU: ${preAllocatedVUs} | 最大VU: ${maxVUs}`);
   console.log(`🕐 测试时间: ${startTime} (持续10分钟)`);
   console.log('🔧 优化策略: 基于实测流程耗时合理分配VU资源，确保QPS稳定性');
   console.log('⚠️  修复: 增加超时时间到120s，优化SSE响应判断逻辑，支持更多HTTP状态码');
   console.log('🌊 流式验证: 检测SSE数据格式（data: {"ResponseType":...} event: completed）');
+  console.log('🆔 用户标识: 每次请求使用随机生成的UUID v4格式用户ID，提高测试真实性');
   console.log('🔍 错误监控: 已启用详细错误日志，失败请求将显示具体错误信息');
   console.log('💡 提示: 使用 k6 run --quiet 命令减少调试输出，使用 --log-level error 只显示错误');
   
   return setupTest(
     config, 
     tokenConfig, 
-    'user/chat (无延迟版本)', 
+    'user/chat (随机用户ID版本)', 
     TARGET_QPS, 
     '/gotgpt/chat',
-    '🌊 测试流程: create-session → chat (SSE流式响应)'
+    '🌊 测试流程: create-session → chat (SSE流式响应) | 🆔 随机用户ID'
   );
 }
 
 // 测试清理阶段
 export function teardown(data) {
   const endTime = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
-  console.log(`✅ user/chat (无延迟版本) 超稳定QPS压力测试完成 - ${endTime}`);
+  console.log(`✅ user/chat (随机用户ID版本) 超稳定QPS压力测试完成 - ${endTime}`);
   console.log('🔍 关键指标: 会话创建成功率、聊天响应成功率、端到端响应时间、QPS稳定性');
-  teardownTest('user/chat (无延迟版本)', '会话创建成功率、聊天响应成功率、端到端响应时间、QPS稳定性');
+  teardownTest('user/chat (随机用户ID版本)', '会话创建成功率、聊天响应成功率、端到端响应时间、QPS稳定性');
 } 
