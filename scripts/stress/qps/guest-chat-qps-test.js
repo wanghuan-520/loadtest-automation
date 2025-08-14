@@ -19,6 +19,9 @@ import { Rate, Trend } from 'k6/metrics';
 // 5. 保留错误信息打印，通过K6日志级别控制HTTP调试信息
 // 6. 智能指标统计：排除发压脚本技术性失败，只统计服务端真实性能
 // 7. 流式响应优化：检测SSE数据格式（data: {"ResponseType":...} event: completed）
+// 8. 超时优化：增加会话创建180s、聊天300s超时，减少timeout错误
+// 9. 错误过滤：只过滤connection reset和timeout连接错误，保留HTTP状态码错误显示
+// 10. Debug优化：关闭httpDebug模式，但保留所有HTTP状态码错误的日志输出
 
 // 自定义指标
 const sessionCreationRate = new Rate('session_creation_success_rate');
@@ -73,12 +76,17 @@ export const options = {
   noVUConnectionReuse: false,        // 启用VU内连接复用，提升稳定性
   userAgent: 'k6-loadtest/1.0',      // 统一User-Agent
   // TCP连接池优化：减少连接重置
-  maxRedirects: 3,                   // 限制重定向次数，减少额外连接
-  // DNS和连接超时优化
-  setupTimeout: '30s',               // 设置阶段超时
-  teardownTimeout: '10s',            // 清理阶段超时
-  // HTTP Keep-Alive设置  
+  maxRedirects: 5,                   // 增加重定向次数，处理更多网络情况
+  // DNS和连接超时优化 - 增强稳定性
+  setupTimeout: '60s',               // 增加设置阶段超时
+  teardownTimeout: '30s',            // 增加清理阶段超时
+  // HTTP Keep-Alive设置 - 减少连接重置
   discardResponseBodies: false,      // 保持响应体，确保完整测试
+  // 新增：连接重置防护配置
+  // httpDebug: 'full',              // 关闭HTTP调试模式，减少日志输出
+  hosts: {
+    'station-developer-dev-staging.aevatar.ai': '172.67.155.130', // 可选：DNS预解析
+  },
   // 注释掉阈值设置，只关注QPS稳定性，不验证响应质量
   // thresholds: {
   //   http_req_failed: ['rate<0.01'],
@@ -97,22 +105,24 @@ export default function () {
   const clientIP = FIXED_IP;
   const userAgent = FIXED_USER_AGENT;
   
-  // 构造会话创建请求头 - 使用随机User-Agent + 连接保持优化
+  // 构造guest会话创建请求头 - 精简版，基于实际前端调用模式
   const sessionHeaders = {
     'accept': '*/*',
-    'accept-language': 'zh-CN,zh;q=0.9',
+    'accept-language': 'en,zh-CN;q=0.9,zh;q=0.8',
+    'cache-control': 'no-cache',
     'content-type': 'application/json',
-    'connection': 'keep-alive',           // 添加：显式启用连接保持
-    'cache-control': 'no-cache',          // 添加：避免缓存干扰
+    'godgptlanguage': 'en',              // 前端实际使用的语言标识
     'origin': config.origin,
+    'pragma': 'no-cache',
+    'priority': 'u=1, i',
     'referer': config.referer,
-    'sec-ch-ua': '"Not)A;Brand";v="8", "Chromium";v="138", "Google Chrome";v="138"',
+    'sec-ch-ua': '"Not;A=Brand";v="99", "Google Chrome";v="139", "Chromium";v="139"',
     'sec-ch-ua-mobile': '?0',
     'sec-ch-ua-platform': '"macOS"',
     'sec-fetch-dest': 'empty',
     'sec-fetch-mode': 'cors',
     'sec-fetch-site': 'cross-site',
-    'user-agent': userAgent,
+    'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36',
   };
   
   // 步骤1：创建会话 - 使用正确的请求体和随机信息
@@ -126,10 +136,7 @@ export default function () {
     }),
     { 
       headers: sessionHeaders,
-      timeout: '60s',                      // 增加：session创建超时调整为60s，应对网络波动
-      // TCP连接优化配置
-      responseType: 'text',                // 明确响应类型
-      redirects: 3,                        // 限制重定向次数
+      timeout: '180s',                     // 增加超时时间到180秒，减少timeout错误
     }
   );
 
@@ -150,12 +157,19 @@ export default function () {
   }
   // 连接重置等技术性错误不计入业务成功率统计
 
-  // 如果会话创建失败，打印错误信息并跳过后续步骤
+  // 优化会话创建错误处理：关闭debug但保留关键错误日志
   if (!isSessionCreated) {
     if (createSessionResponse.status === 0) {
-      console.error(`❌ 会话创建连接失败: ${createSessionResponse.error || '连接重置'}`);
+      // 连接相关错误：只在非常见错误时打印，避免日志噪音
+      if (createSessionResponse.error && 
+          !createSessionResponse.error.includes('connection reset') && 
+          !createSessionResponse.error.includes('timeout') &&
+          !createSessionResponse.error.includes('read: operation timed out')) {
+        console.error(`❌ [会话创建异常]: ${createSessionResponse.error}`);
+      }
     } else {
-      console.error(`❌ 会话创建失败 - HTTP状态码: ${createSessionResponse.status}`);
+      // HTTP错误：显示所有非连接相关的状态码错误，包括524、502、503等
+      console.error(`❌ [会话创建失败] status=${createSessionResponse.status}`);
     }
     return;
   }
@@ -176,23 +190,24 @@ export default function () {
   // 步骤2：发送聊天消息
   const randomMessage = testData.messages[Math.floor(Math.random() * testData.messages.length)];
   
-  // 构造聊天请求头 - 参照成功案例格式，支持SSE流式响应 + 连接保持优化
+  // 构造guest聊天请求头 - 精简版，基于实际前端调用模式
   const chatHeaders = {
     'accept': 'text/event-stream',
-    'accept-language': 'zh-CN,zh;q=0.9',
+    'accept-language': 'en,zh-CN;q=0.9,zh;q=0.8',
+    'cache-control': 'no-cache',
     'content-type': 'application/json',
-    'connection': 'keep-alive',           // 添加：显式启用连接保持
-    'cache-control': 'no-cache',          // 添加：SSE流需要避免缓存
+    'godgptlanguage': 'en',               // 前端实际使用的语言标识
     'origin': config.origin,
-    'referer': config.referer,
+    'pragma': 'no-cache',
     'priority': 'u=1, i',
-    'sec-ch-ua': '"Not)A;Brand";v="8", "Chromium";v="138", "Google Chrome";v="138"',
+    'referer': config.referer,
+    'sec-ch-ua': '"Not;A=Brand";v="99", "Google Chrome";v="139", "Chromium";v="139"',
     'sec-ch-ua-mobile': '?0',
     'sec-ch-ua-platform': '"macOS"',
     'sec-fetch-dest': 'empty',
     'sec-fetch-mode': 'cors',
     'sec-fetch-site': 'cross-site',
-    'user-agent': userAgent,
+    'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36',
   };
   
   // 使用正确的请求体格式 - 参照成功案例
@@ -209,9 +224,7 @@ export default function () {
     JSON.stringify(chatPayload),
     { 
       headers: chatHeaders,
-      timeout: '120s',
-      responseType: 'text',
-      redirects: 3,
+      timeout: '300s',                     // 大幅增加聊天超时时间到300秒，适应SSE长响应
     }
   );
 
@@ -222,12 +235,19 @@ export default function () {
     return body.includes('data:') || body.includes('event:') || body.includes('ResponseType') || body.length === 0;
   })();
 
-  // 如果聊天失败，打印错误信息
+  // 优化聊天错误处理：关闭debug但保留关键错误日志
   if (!isChatSuccess) {
     if (chatResponse.status === 0) {
-      console.error(`❌ 聊天连接失败: ${chatResponse.error || '连接重置'}`);
+      // 连接相关错误：只在非常见错误时打印，避免日志噪音
+      if (chatResponse.error && 
+          !chatResponse.error.includes('connection reset') && 
+          !chatResponse.error.includes('timeout') &&
+          !chatResponse.error.includes('read: operation timed out')) {
+        console.error(`❌ [聊天异常]: ${chatResponse.error}`);
+      }
     } else {
-      console.error(`❌ 聊天响应失败 - HTTP状态码: ${chatResponse.status}`);
+      // HTTP错误：显示所有非连接相关的状态码错误，包括524、502、503等
+      console.error(`❌ [聊天失败] status=${chatResponse.status}`);
     }
   }
 

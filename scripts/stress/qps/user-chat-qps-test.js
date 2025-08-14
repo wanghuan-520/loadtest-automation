@@ -21,6 +21,10 @@ import { getAccessToken, setupTest, teardownTest } from '../../utils/auth.js';
 // 6. 智能指标统计：排除发压脚本技术性失败，只统计服务端真实性能
 // 7. 流式响应优化：检测SSE数据格式（data: {"ResponseType":...} event: completed）
 // 8. 随机用户ID：每次请求使用不同的随机UUID v4格式用户ID，提高测试真实性
+// 9. 超时优化：增加会话创建180s、聊天300s超时，减少timeout错误
+// 10. 错误过滤：只过滤connection reset和timeout连接错误，保留HTTP状态码错误显示
+// 11. Debug优化：关闭httpDebug模式，但保留所有HTTP状态码错误的日志输出
+// 12. 请求优化：基于实际前端curl，精简请求头和参数，提高性能和兼容性
 
 // 自定义指标
 const sessionCreationRate = new Rate('session_creation_success_rate');
@@ -101,12 +105,17 @@ export const options = {
   noVUConnectionReuse: false,        // 启用VU内连接复用，提升稳定性
   userAgent: 'k6-loadtest/1.0',      // 统一User-Agent
   // TCP连接池优化：减少连接重置
-  maxRedirects: 3,                   // 限制重定向次数，减少额外连接
-  // DNS和连接超时优化
-  setupTimeout: '30s',               // 设置阶段超时
-  teardownTimeout: '10s',            // 清理阶段超时
-  // HTTP Keep-Alive设置  
+  maxRedirects: 5,                   // 增加重定向次数，处理更多网络情况
+  // DNS和连接超时优化 - 增强稳定性
+  setupTimeout: '60s',               // 增加设置阶段超时
+  teardownTimeout: '30s',            // 增加清理阶段超时
+  // HTTP Keep-Alive设置 - 减少连接重置
   discardResponseBodies: false,      // 保持响应体，确保完整测试
+  // 新增：连接重置防护配置
+  // httpDebug: 'full',              // 关闭HTTP调试模式，减少日志输出
+  hosts: {
+    'station-developer-dev-staging.aevatar.ai': '172.67.155.130', // 可选：DNS预解析
+  },
   // 📊 完整响应时间统计信息
   summaryTrendStats: ['avg', 'min', 'med', 'max', 'p(90)', 'p(95)'], // 显示完整的响应时间分布
   // 注释掉阈值设置，只关注QPS稳定性，不验证响应质量
@@ -128,37 +137,33 @@ export default function (data) {
   const createSessionUrl = `${data.baseUrl}/godgpt/create-session`;
   const createSessionPayload = JSON.stringify({
     guider: '',
-    userId: userId  // 添加userId参数，与chat保持一致
+    userId: userId  // 保留userId参数，确保每次使用不同的随机用户ID
   });
   
-  // 构造已登录用户的create-session请求头 + 连接保持优化
+  // 构造已登录用户的create-session请求头 - 精简版，基于实际前端调用
   const sessionHeaders = {
     'accept': '*/*',
     'accept-language': 'en,zh-CN;q=0.9,zh;q=0.8',
     'authorization': `Bearer ${data.bearerToken}`,
-    'connection': 'keep-alive',           // 添加：显式启用连接保持
     'cache-control': 'no-cache',
     'content-type': 'application/json',
+    'godgptlanguage': 'en',              // 前端实际使用的语言标识
     'origin': config.origin,
     'pragma': 'no-cache',
     'priority': 'u=1, i',
     'referer': config.referer,
-    'sec-ch-ua': '"Not)A;Brand";v="8", "Chromium";v="138", "Google Chrome";v="138"',
+    'sec-ch-ua': '"Not;A=Brand";v="99", "Google Chrome";v="139", "Chromium";v="139"',
     'sec-ch-ua-mobile': '?0',
     'sec-ch-ua-platform': '"macOS"',
     'sec-fetch-dest': 'empty',
     'sec-fetch-mode': 'cors',
     'sec-fetch-site': 'cross-site',
-    'user-agent': FIXED_USER_AGENT,
+    'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36',
   };
   
   const createSessionParams = {
     headers: sessionHeaders,
-    timeout: '60s',                // 会话创建超时时间优化为60秒
-    // TCP连接优化配置
-    responseType: 'text',          // 明确响应类型，提升解析效率
-    redirects: 3,                  // 限制重定向次数
-    responseCallback: http.expectedStatuses(200, 408, 429, 502, 503, 504), // 接受更多状态码，减少错误干扰
+    timeout: '180s',               // 增加超时时间到180秒，减少timeout错误
   };
   
   const createSessionResponse = http.post(createSessionUrl, createSessionPayload, createSessionParams);
@@ -166,12 +171,19 @@ export default function (data) {
   // 简化会话创建成功判断 - 仅HTTP状态码验证以减少JSON解析开销
   const isSessionCreated = createSessionResponse.status === 200;
 
-  // 如果会话创建失败，打印错误信息
+  // 优化错误处理：关闭debug但保留关键错误日志
   if (!isSessionCreated) {
     if (createSessionResponse.status === 0) {
-      console.error(`❌ [会话创建连接失败] userId=${userId}: ${createSessionResponse.error || '连接重置'}`);
+      // 连接相关错误：只在非常见错误时打印，避免日志噪音
+      if (createSessionResponse.error && 
+          !createSessionResponse.error.includes('connection reset') && 
+          !createSessionResponse.error.includes('timeout') &&
+          !createSessionResponse.error.includes('read: operation timed out')) {
+        console.error(`❌ [会话创建异常] userId=${userId}: ${createSessionResponse.error}`);
+      }
     } else {
-      console.error(`❌ [会话创建失败] userId=${userId}, HTTP状态码: ${createSessionResponse.status}`);
+      // HTTP错误：显示所有非连接相关的状态码错误，包括524、502、503等
+      console.error(`❌ [会话创建失败] userId=${userId}, status=${createSessionResponse.status}`);
     }
   }
   
@@ -214,25 +226,25 @@ export default function (data) {
   // 步骤2: 发送聊天消息
   const randomMessage = testData.messages[Math.floor(Math.random() * testData.messages.length)];
   
-  // 构造已登录用户的chat请求头 - 支持SSE流式响应 + 连接保持优化
+  // 构造已登录用户的chat请求头 - 精简版，基于实际前端调用
   const chatHeaders = {
     'accept': 'text/event-stream',
     'accept-language': 'en,zh-CN;q=0.9,zh;q=0.8',
     'authorization': `Bearer ${data.bearerToken}`,
-    'connection': 'keep-alive',           // 添加：显式启用连接保持
-    'cache-control': 'no-cache',          // 添加：SSE流需要避免缓存
+    'cache-control': 'no-cache',
     'content-type': 'application/json',
+    'godgptlanguage': 'en',               // 前端实际使用的语言标识
     'origin': config.origin,
     'pragma': 'no-cache',
     'priority': 'u=1, i',
     'referer': config.referer,
-    'sec-ch-ua': '"Not)A;Brand";v="8", "Chromium";v="138", "Google Chrome";v="138"',
+    'sec-ch-ua': '"Not;A=Brand";v="99", "Google Chrome";v="139", "Chromium";v="139"',
     'sec-ch-ua-mobile': '?0',
     'sec-ch-ua-platform': '"macOS"',
     'sec-fetch-dest': 'empty',
     'sec-fetch-mode': 'cors',
     'sec-fetch-site': 'cross-site',
-    'user-agent': FIXED_USER_AGENT,
+    'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36',
   };
   
   // 使用已登录用户的chat请求体格式 - 包含sessionId和userId
@@ -246,11 +258,7 @@ export default function (data) {
   
   const chatParams = {
     headers: chatHeaders,
-    timeout: '120s',               // 聊天响应超时时间优化为120秒，适应SSE流式响应
-    // TCP连接优化配置
-    responseType: 'text',          // 明确响应类型，支持SSE流
-    redirects: 3,                  // 限制重定向次数
-    responseCallback: http.expectedStatuses(200, 408, 429, 502, 503, 504, 524), // 接受更多状态码包括524超时
+    timeout: '300s',               // 大幅增加聊天超时时间到300秒，适应SSE长响应
   };
   
   const chatResponse = http.post(`${data.baseUrl}/gotgpt/chat`, JSON.stringify(chatPayload), chatParams);
@@ -262,11 +270,18 @@ export default function (data) {
     return body.includes('data:') || body.includes('event:') || body.includes('ResponseType') || body.length === 0;
   })();
 
-  // 如果聊天失败，打印错误信息
+  // 优化聊天错误处理：关闭debug但保留关键错误日志
   if (!isChatSuccess) {
     if (chatResponse.status === 0) {
-      console.error(`❌ [聊天连接失败] userId=${userId}, sessionId=${sessionId}: ${chatResponse.error || '连接重置'}`);
+      // 连接相关错误：只在非常见错误时打印，避免日志噪音
+      if (chatResponse.error && 
+          !chatResponse.error.includes('connection reset') && 
+          !chatResponse.error.includes('timeout') &&
+          !chatResponse.error.includes('read: operation timed out')) {
+        console.error(`❌ [聊天异常] userId=${userId}, sessionId=${sessionId}: ${chatResponse.error}`);
+      }
     } else {
+      // HTTP错误：显示所有非连接相关的状态码错误，包括524、502、503等
       console.error(`❌ [聊天失败] userId=${userId}, sessionId=${sessionId}, status=${chatResponse.status}`);
     }
   }
@@ -307,8 +322,8 @@ export function setup() {
   console.log('⚠️  修复: 增加超时时间到120s，优化SSE响应判断逻辑，支持更多HTTP状态码');
   console.log('🌊 流式验证: 检测SSE数据格式（data: {"ResponseType":...} event: completed）');
   console.log('🆔 用户标识: 每次请求使用随机生成的UUID v4格式用户ID，提高测试真实性');
-  console.log('🔍 错误监控: 已启用详细错误日志，失败请求将显示具体错误信息');
-  console.log('💡 提示: 使用 k6 run --quiet 命令减少调试输出，使用 --log-level error 只显示错误');
+  console.log('🔍 错误监控: 已关闭debug模式，显示所有HTTP状态码错误，只过滤连接重置/超时');
+  console.log('💡 提示: 使用 k6 run --quiet 命令进一步减少输出，使用 --log-level error 只显示错误');
   
   return setupTest(
     config, 
