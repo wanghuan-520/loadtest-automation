@@ -7,11 +7,16 @@ import { Rate, Trend } from 'k6/metrics';
 // 自定义目标QPS: k6 run -e TARGET_QPS=50 guest-chat-qps-test.js
 // 示例: k6 run -e TARGET_QPS=40 guest-chat-qps-test.js
 //
+// 🔇 静默运行模式（禁用HTTP调试日志）：
+// k6 run --log-level error -e TARGET_QPS=40 guest-chat-qps-test.js
+// 或设置环境变量: export K6_LOG_LEVEL=error
+//
 // 🔧 连接重置优化版本 - 针对TCP连接被peer重置问题的优化：
 // 1. batchPerHost=1 统一配置，减少并发压力避免触发Cloudflare保护
 // 2. 显式启用keep-alive连接保持，减少连接建立/断开开销
 // 3. 添加cache-control避免缓存干扰SSE流式响应
 // 4. 优化TCP连接参数，提高连接稳定性
+// 5. 保留错误信息打印，通过K6日志级别控制HTTP调试信息
 
 // 自定义指标
 const sessionCreationRate = new Rate('session_creation_success_rate');
@@ -85,8 +90,7 @@ export const options = {
   // DNS和连接超时优化
   setupTimeout: '30s',               // 设置阶段超时
   teardownTimeout: '10s',            // 清理阶段超时
-  // HTTP Keep-Alive设置
-  httpDebug: 'none',                 // 关闭调试日志，减少资源消耗
+  // HTTP Keep-Alive设置  
   discardResponseBodies: false,      // 保持响应体，确保完整测试
   // 注释掉阈值设置，只关注QPS稳定性，不验证响应质量
   // thresholds: {
