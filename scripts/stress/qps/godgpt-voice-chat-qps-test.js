@@ -176,6 +176,19 @@ export default function (data) {
     '语音聊天成功': (r) => r.status === 200 && r.body && r.body.length > 0
   });
 
+  // 失败时打印错误信息，帮助定位问题
+  if (!isVoiceChatSuccess) {
+    if (voiceChatResponse.status === 0) {
+      // 连接重置或超时错误，简化日志输出
+      if (Math.random() < 0.1) { // 只显示10%的连接错误详情
+        console.error(`❌ 连接错误 (仅显示10%详情): ${voiceChatResponse.error || '连接重置'}`);
+      }
+    } else {
+      // 其他HTTP错误正常显示
+      console.error(`❌ 语音聊天失败 - HTTP状态码: ${voiceChatResponse.status}, 响应体长度: ${voiceChatResponse.body ? voiceChatResponse.body.length : 0}`);
+    }
+  }
+
   // 记录自定义指标 - 直接使用检查结果
   voiceChatRate.add(isVoiceChatSuccess);
   voiceChatRequestDuration.add(voiceChatResponse.timings.duration);
@@ -185,8 +198,7 @@ export default function (data) {
     voiceChatDuration.add(voiceChatResponse.timings.duration);
   }
   
-  // 静默处理语音聊天失败，避免调试信息干扰压测结果
-  // 错误统计通过metrics记录，无需console输出
+  // 错误统计通过metrics记录，失败信息适度打印便于问题定位
 }
 
 // 移除状态码描述函数，减少代码复杂度
