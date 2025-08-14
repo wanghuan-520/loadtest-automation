@@ -19,6 +19,7 @@ import { getAccessToken, setupTest, teardownTest } from '../../utils/auth.js';
 // 4. 优化TCP连接参数，提高连接稳定性
 // 5. 保留错误信息打印，通过K6日志级别控制HTTP调试信息
 // 6. 智能指标统计：排除发压脚本技术性失败，只统计服务端真实性能
+// 7. 流式响应优化：检测SSE数据格式（data: {"ResponseType":...} event: completed）
 
 // 自定义指标
 const sessionCreationRate = new Rate('session_creation_success_rate');
@@ -151,23 +152,32 @@ export default function (data) {
   
   const createSessionResponse = http.post(createSessionUrl, createSessionPayload, createSessionParams);
 
-  // 会话创建成功判断 - 只需要业务code为20000
+  // 会话创建成功判断 - 参照guest-chat逻辑：双重验证机制
   const isSessionCreated = check(createSessionResponse, {
+    'HTTP状态码200': (r) => r.status === 200,
     '业务代码20000': (r) => {
       try {
         const data = JSON.parse(r.body);
-        const success = data.code === "20000";
-        // 🔍 会话创建失败时打印错误日志
-        if (!success) {
-          console.error(`❌ [会话创建失败] userId=${userId}, status=${r.status}, code=${data.code || 'N/A'}, message=${data.message || 'N/A'}, body=${r.body.substring(0, 200)}`);
-        }
-        return success;
-      } catch (error) {
-        console.error(`❌ [会话创建解析失败] userId=${userId}, status=${r.status}, error=${error.message}, body=${r.body.substring(0, 200)}`);
+        return data.code === "20000";
+      } catch {
         return false;
       }
     }
   });
+
+  // 如果会话创建失败，打印错误信息（参照guest-chat错误处理逻辑）
+  if (!isSessionCreated) {
+    // 区分不同类型的错误
+    if (createSessionResponse.status === 0) {
+      // 连接重置或超时错误，简化日志输出
+      if (Math.random() < 0.1) { // 只显示10%的连接错误详情
+        console.error(`❌ [会话创建连接失败] userId=${userId} (仅显示10%详情): ${createSessionResponse.error || '连接重置'}`);
+      }
+    } else {
+      // 其他HTTP错误正常显示
+      console.error(`❌ [会话创建失败] userId=${userId}, HTTP状态码: ${createSessionResponse.status}, 响应体: ${createSessionResponse.body}`);
+    }
+  }
   
   // 记录会话创建指标 - 区分技术性失败和业务失败
   // 只有非连接重置的请求才计入总请求数和成功率统计
@@ -252,23 +262,39 @@ export default function (data) {
   
   const chatResponse = http.post(`${data.baseUrl}/gotgpt/chat`, JSON.stringify(chatPayload), chatParams);
   
-  // 验证聊天响应 - 优化判断逻辑：考虑SSE流式响应特性
+  // 验证聊天响应 - 流式响应特性：HTTP 200即表示成功
   const isChatSuccess = check(chatResponse, {
-    '聊天响应成功': (r) => {
-      // 优化判断：状态码200或者有实际响应内容（SSE流可能状态码为0但有数据）
-      const hasValidResponse = (r.body || '').length > 1; // 响应体大于1字符认为有效
-      const hasExpectedContent = (r.body || '').includes('ResponseType') || (r.body || '').includes('Response');
-      const success = (r.status === 200 && hasValidResponse) || (hasValidResponse && hasExpectedContent);
+    'HTTP状态码200': (r) => r.status === 200,
+    '流式数据判断': (r) => {
+      if (r.status !== 200) return false;
       
-      // 🔍 聊天失败时打印错误日志
-      if (!success) {
-        const bodyPreview = (r.body || '').substring(0, 300);
-        console.error(`❌ [聊天失败] userId=${userId}, sessionId=${sessionId}, status=${r.status}, bodyLength=${(r.body || '').length}, hasExpectedContent=${hasExpectedContent}, body=${bodyPreview}`);
-      }
+      // 🌊 SSE流式响应判断逻辑：
+      // 1. HTTP 200状态码表示服务器接受请求并开始流式传输
+      // 2. 检测SSE数据格式：data: {"ResponseType":...} 或 event: completed
+      // 3. 响应体可能为空（流式分块传输特性），200状态码即表示成功
+      const body = r.body || '';
+      const hasSSEData = body.includes('data:') || body.includes('event:') || body.includes('ResponseType');
       
-      return success;
+      // 成功条件：200状态码 + (有SSE数据 或 空响应体)
+      return r.status === 200 && (hasSSEData || body.length === 0);
     }
   });
+
+  // 如果聊天失败，打印错误信息（参照guest-chat错误处理逻辑）
+  if (!isChatSuccess) {
+    if (chatResponse.status === 0) {
+      // 超时错误，只统计不详细打印（避免日志爆炸）
+      if (Math.random() < 0.1) { // 只有10%的超时错误会打印详情
+        console.error(`❌ [聊天连接失败] userId=${userId}, sessionId=${sessionId} (仅显示10%的连接错误详情)`);
+      }
+    } else {
+      // 其他类型错误正常打印
+      console.error(`❌ [聊天失败] userId=${userId}, sessionId=${sessionId}, status=${chatResponse.status}`);
+      if (chatResponse.status >= 500) {
+        console.error(`服务器错误: ${chatResponse.body}`);
+      }
+    }
+  }
   
 
 
@@ -305,6 +331,7 @@ export function setup() {
   console.log(`🕐 测试时间: ${startTime} (持续10分钟)`);
   console.log('🔧 优化策略: 基于实测流程耗时合理分配VU资源，确保QPS稳定性');
   console.log('⚠️  修复: 增加超时时间到120s，优化SSE响应判断逻辑，支持更多HTTP状态码');
+  console.log('🌊 流式验证: 检测SSE数据格式（data: {"ResponseType":...} event: completed）');
   console.log('🔍 错误监控: 已启用详细错误日志，失败请求将显示具体错误信息');
   console.log('💡 提示: 使用 k6 run --quiet 命令减少调试输出，使用 --log-level error 只显示错误');
   

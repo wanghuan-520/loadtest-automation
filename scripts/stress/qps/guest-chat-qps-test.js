@@ -18,6 +18,7 @@ import { Rate, Trend } from 'k6/metrics';
 // 4. 优化TCP连接参数，提高连接稳定性
 // 5. 保留错误信息打印，通过K6日志级别控制HTTP调试信息
 // 6. 智能指标统计：排除发压脚本技术性失败，只统计服务端真实性能
+// 7. 流式响应优化：检测SSE数据格式（data: {"ResponseType":...} event: completed）
 
 // 自定义指标
 const sessionCreationRate = new Rate('session_creation_success_rate');
@@ -282,20 +283,21 @@ export default function () {
     };
   }
 
-  // 验证聊天响应 - HTTP状态码200 + 业务code判断（聊天响应可能是流式，需兼容处理）
+  // 验证聊天响应 - 流式响应特性：HTTP 200 + 有数据传输即成功
   const isChatSuccess = check(chatResponse, {
     'HTTP状态码200': (r) => r.status === 200,
-    '业务成功判断': (r) => {
+    '流式数据判断': (r) => {
       if (r.status !== 200) return false;
       
-      // 聊天API可能返回SSE流式响应，先尝试解析JSON
-      try {
-        const data = JSON.parse(r.body);
-        return data.code === "20000";
-      } catch {
-        // 如果不是JSON格式（可能是SSE流），HTTP 200即视为成功
-        return r.status === 200;
-      }
+      // 🌊 SSE流式响应判断逻辑：
+      // 1. HTTP 200状态码表示服务器接受请求并开始流式传输
+      // 2. 检测SSE数据格式：data: {"ResponseType":...} 或 event: completed
+      // 3. 响应体可能为空（流式分块传输特性），200状态码即表示成功
+      const body = r.body || '';
+      const hasSSEData = body.includes('data:') || body.includes('event:') || body.includes('ResponseType');
+      
+      // 成功条件：200状态码 + (有SSE数据 或 空响应体)
+      return r.status === 200 && (hasSSEData || body.length === 0);
     }
   });
 
