@@ -26,6 +26,11 @@ const chatResponseRate = new Rate('chat_response_success_rate');
 const chatResponseDuration = new Trend('chat_response_duration');
 const createResponseDuration = new Trend('create_response_duration');
 
+// 错误监控指标
+const sessionErrorRate = new Rate('session_error_rate');
+const chatErrorRate = new Rate('chat_error_rate');
+const connectionErrorCounter = new Counter('connection_error_total');  // 连接相关错误计数
+
 // QPS统计计数器 - 只统计有效请求，排除发压脚本导致的技术性失败
 import { Counter } from 'k6/metrics';
 const sessionAttemptCounter = new Counter('session_attempt_total');      // 只统计status!=0的有效请求
@@ -151,8 +156,14 @@ export default function (data) {
     '业务代码20000': (r) => {
       try {
         const data = JSON.parse(r.body);
-        return data.code === "20000";
-      } catch {
+        const success = data.code === "20000";
+        // 🔍 会话创建失败时打印错误日志
+        if (!success) {
+          console.error(`❌ [会话创建失败] userId=${userId}, status=${r.status}, code=${data.code || 'N/A'}, message=${data.message || 'N/A'}, body=${r.body.substring(0, 200)}`);
+        }
+        return success;
+      } catch (error) {
+        console.error(`❌ [会话创建解析失败] userId=${userId}, status=${r.status}, error=${error.message}, body=${r.body.substring(0, 200)}`);
         return false;
       }
     }
@@ -165,10 +176,15 @@ export default function (data) {
   if (isValidRequest) {
     sessionAttemptCounter.add(1); // 只统计有效的session尝试次数
     sessionCreationRate.add(isSessionCreated);
+    sessionErrorRate.add(!isSessionCreated); // 记录会话创建错误率
     if (isSessionCreated) {
       sessionSuccessCounter.add(1); // 统计session成功次数
       createResponseDuration.add(createSessionResponse.timings.duration);
     }
+  } else {
+    // 🔍 连接重置等技术性错误日志
+    connectionErrorCounter.add(1); // 统计连接错误次数
+    console.error(`❌ [会话创建连接失败] userId=${userId}, status=${createSessionResponse.status}, error=${createSessionResponse.error || 'unknown'}`);
   }
   // 连接重置等技术性错误不计入业务成功率统计
 
@@ -242,7 +258,15 @@ export default function (data) {
       // 优化判断：状态码200或者有实际响应内容（SSE流可能状态码为0但有数据）
       const hasValidResponse = (r.body || '').length > 1; // 响应体大于1字符认为有效
       const hasExpectedContent = (r.body || '').includes('ResponseType') || (r.body || '').includes('Response');
-      return (r.status === 200 && hasValidResponse) || (hasValidResponse && hasExpectedContent);
+      const success = (r.status === 200 && hasValidResponse) || (hasValidResponse && hasExpectedContent);
+      
+      // 🔍 聊天失败时打印错误日志
+      if (!success) {
+        const bodyPreview = (r.body || '').substring(0, 300);
+        console.error(`❌ [聊天失败] userId=${userId}, sessionId=${sessionId}, status=${r.status}, bodyLength=${(r.body || '').length}, hasExpectedContent=${hasExpectedContent}, body=${bodyPreview}`);
+      }
+      
+      return success;
     }
   });
   
@@ -255,10 +279,15 @@ export default function (data) {
   if (isChatValidRequest) {
     chatAttemptCounter.add(1); // 只统计有效的chat尝试次数
     chatResponseRate.add(isChatSuccess);
+    chatErrorRate.add(!isChatSuccess); // 记录聊天错误率
     if (isChatSuccess) {
       chatSuccessCounter.add(1); // 统计chat成功次数
       chatResponseDuration.add(chatResponse.timings.duration);
     }
+  } else {
+    // 🔍 连接重置/超时等技术性错误日志
+    connectionErrorCounter.add(1); // 统计连接错误次数
+    console.error(`❌ [聊天连接失败] userId=${userId}, sessionId=${sessionId}, status=${chatResponse.status}, error=${chatResponse.error || 'unknown'}`);
   }
   // 连接重置/超时等技术性错误不计入业务成功率统计
 
@@ -276,7 +305,8 @@ export function setup() {
   console.log(`🕐 测试时间: ${startTime} (持续10分钟)`);
   console.log('🔧 优化策略: 基于实测流程耗时合理分配VU资源，确保QPS稳定性');
   console.log('⚠️  修复: 增加超时时间到120s，优化SSE响应判断逻辑，支持更多HTTP状态码');
-  console.log('💡 提示: 使用 k6 run --quiet 命令减少调试输出');
+  console.log('🔍 错误监控: 已启用详细错误日志，失败请求将显示具体错误信息');
+  console.log('💡 提示: 使用 k6 run --quiet 命令减少调试输出，使用 --log-level error 只显示错误');
   
   return setupTest(
     config, 
